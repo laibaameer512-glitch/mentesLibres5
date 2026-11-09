@@ -1,0 +1,52 @@
+[
+  {
+    "id": "SEC-001-DEMO",
+    "act": "Electronic Communications Protection Framework (Sample Draft)",
+    "section": "Section 10-A (PLACEHOLDER - REPLACE WITH VERIFIED TEXT)",
+    "title": "Unauthorized Surveillance and Cyber-Stalking (PLACEHOLDER)",
+    "snippet": "[PLACEHOLDER - REPLACE WITH VERIFIED TEXT] Pertains to persistent electronic stalking, tracking without consent, or repeated unwelcome communications causing distress or alarm.",
+    "category": "cyber-stalking",
+    "sourceUrl": "https://example.gov.pk/legal/placeholder-sec10a",
+    "isPlaceholder": true
+  },
+  {
+    "id": "SEC-002-DEMO",
+    "act": "Digital Safety & Harassment Act (Sample Draft)",
+    "section": "Section 14-B (PLACEHOLDER - REPLACE WITH VERIFIED TEXT)",
+    "title": "Coercion, Blackmail & Digital Extortion (PLACEHOLDER)",
+    "snippet": "[PLACEHOLDER - REPLACE WITH VERIFIED TEXT] Covers threatening to release sensitive private media or personal information to demand money, favor, or compliance.",
+    "category": "blackmail/extortion",
+    "sourceUrl": "https://example.gov.pk/legal/placeholder-sec14b",
+    "isPlaceholder": true
+  },
+  {
+    "id": "SEC-003-DEMO",
+    "act": "Protection against Harassment at Institutions Framework (Sample Draft)",
+    "section": "Section 4-C (PLACEHOLDER - REPLACE WITH VERIFIED TEXT)",
+    "title": "Hostile Environment & Institutional Intimidation (PLACEHOLDER)",
+    "snippet": "[PLACEHOLDER - REPLACE WITH VERIFIED TEXT] Prohibits unwelcome advances, quid-pro-quo academic or workplace pressure, or creating a hostile working or study environment.",
+    "category": "workplace/educational harassment",
+    "sourceUrl": "https://example.gov.pk/legal/placeholder-sec4c",
+    "isPlaceholder": true
+  },
+  {
+    "id": "SEC-004-DEMO",
+    "act": "Privacy of Communications & Dignity Draft (Sample Draft)",
+    "section": "Section 18-F (PLACEHOLDER - REPLACE WITH VERIFIED TEXT)",
+    "title": "Non-Consensual Distribution of Intimate or Private Media (PLACEHOLDER)",
+    "snippet": "[PLACEHOLDER - REPLACE WITH VERIFIED TEXT] Unlawful transmission, distribution, or publishing of private visual records or doctored imagery without explicit authorization.",
+    "category": "non-consensual image sharing",
+    "sourceUrl": "https://example.gov.pk/legal/placeholder-sec18f",
+    "isPlaceholder": true
+  },
+  {
+    "id": "SEC-005-DEMO",
+    "act": "Criminal Intimidation & Defamation Provisions (Sample Draft)",
+    "section": "Section 21-D (PLACEHOLDER - REPLACE WITH VERIFIED TEXT)",
+    "title": "Severe Threat of Harm and Coercive Intimidation (PLACEHOLDER)",
+    "snippet": "[PLACEHOLDER - REPLACE WITH VERIFIED TEXT] Transmission of explicit threats to bodily harm, reputation destruction, or family intimidation with intent to force wrongful submission.",
+    "category": "criminal threats",
+    "sourceUrl": "https://example.gov.pk/legal/placeholder-sec21d",
+    "isPlaceholder": true
+  }
+]

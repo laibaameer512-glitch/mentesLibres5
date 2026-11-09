@@ -1,0 +1,6 @@
+{
+  "name": "Calculator",
+  "description": "Standard utility calculator for daily arithmetic, conversions, and percentages.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
