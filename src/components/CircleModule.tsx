@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { VaultCase, saveRealCase } from '../lib/db.ts';
+import { VaultCase, saveRealCase, getOrCreateEncryptedPseudonym } from '../lib/db.ts';
 import { CircleExplainerModal } from './CircleExplainerModal.tsx';
 import {
   ShieldCheck,
@@ -11,6 +11,9 @@ import {
   Trash2,
   CheckCircle2,
   Sparkles,
+  Lock,
+  X,
+  AlertCircle,
 } from 'lucide-react';
 
 interface CircleModuleProps {
@@ -24,6 +27,7 @@ interface IdentifierItem {
   raw: string;
   normalized: string;
   selected: boolean;
+  hash?: string;
   status?: {
     match: boolean;
     count: number;
@@ -32,7 +36,7 @@ interface IdentifierItem {
 }
 
 /**
- * Normalizes a phone number to Pakistani +92 format
+ * Normalizes a phone number to Pakistani +92 format (+923XXXXXXXXX)
  */
 function normalizePhone(raw: string): string {
   if (!raw) return '';
@@ -68,22 +72,14 @@ function detectIdentifierType(val: string): 'phone' | 'handle' | 'location' | 'o
   return 'other';
 }
 
-function getOrCreateReporterPseudonym(): string {
-  const STORAGE_KEY = 'sakhi_circle_pseudonym';
-  let id = localStorage.getItem(STORAGE_KEY);
-  if (!id) {
-    id = 'pseudo-' + (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
-    localStorage.setItem(STORAGE_KEY, id);
-  }
-  return id;
-}
-
 export const CircleModule: React.FC<CircleModuleProps> = ({
   currentCase,
   activeKey,
   onCaseUpdated,
 }) => {
   const [showExplainer, setShowExplainer] = useState(false);
+  const [showConfirmOptInModal, setShowConfirmOptInModal] = useState(false);
+  const [reporterPseudonym, setReporterPseudonym] = useState<string | null>(null);
   const [optedIn, setOptedIn] = useState<boolean>(
     Boolean(currentCase.circleContribution?.optedIn)
   );
@@ -92,7 +88,24 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [demoSeeding, setDemoSeeding] = useState(false);
 
-  // Extract and normalize available identifiers from the case
+  // 1. Load device reporter pseudonym encrypted from vault IndexedDB
+  useEffect(() => {
+    let isMounted = true;
+    getOrCreateEncryptedPseudonym(activeKey)
+      .then((pseudo) => {
+        if (isMounted) {
+          setReporterPseudonym(pseudo);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load encrypted device pseudonym:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [activeKey]);
+
+  // 2. Extract and normalize available identifiers from the case
   useEffect(() => {
     const rawList: string[] = [];
     if (currentCase.extractedReview?.identifiers) {
@@ -118,52 +131,66 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
 
     // Deduplicate and normalize
     const unique = Array.from(new Set(rawList.filter(Boolean)));
-    const builtItems: IdentifierItem[] = unique.map((raw) => {
+    const builtItems: IdentifierItem[] = unique.map((raw, idx) => {
       const type = detectIdentifierType(raw);
       let normalized = raw;
       if (type === 'phone') normalized = normalizePhone(raw);
       else if (type === 'handle') normalized = normalizeHandle(raw);
       else normalized = normalizeGeneric(raw);
 
+      // Pre-map saved hash if case was previously contributed
+      const savedHash = currentCase.circleContribution?.contributedHashes?.[idx];
+
       return {
         type,
         raw,
         normalized,
         selected: true,
+        hash: savedHash,
       };
     });
 
     setIdentifiers(builtItems);
 
-    if (currentCase.circleContribution?.optedIn) {
-      checkStatus(builtItems);
+    if (currentCase.circleContribution?.optedIn && reporterPseudonym) {
+      checkStatus(builtItems, reporterPseudonym);
     }
-  }, [currentCase.id]);
+  }, [currentCase.id, reporterPseudonym]);
 
   // Check matching status with server
-  const checkStatus = async (itemsToCheck: IdentifierItem[]) => {
+  const checkStatus = async (itemsToCheck: IdentifierItem[], pseudo?: string) => {
+    const activePseudonym = pseudo || reporterPseudonym;
+    if (!activePseudonym) return;
+
     try {
-      const reporterPseudonym = getOrCreateReporterPseudonym();
-      const res = await fetch('/api/circle/status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reporterPseudonym,
-          caseId: currentCase.id,
-        }),
-      });
+      // Query GET /api/circle/status?reporterPseudonym=...
+      const queryUrl = `/api/circle/status?reporterPseudonym=${encodeURIComponent(activePseudonym)}`;
+      const res = await fetch(queryUrl);
 
       if (!res.ok) return;
       const data = await res.json();
-      const resultsMap = data.results || {};
+      const resultsMap: Record<string, { status: 'match' | 'no_match'; count: number; message: string }> =
+        data.results || {};
 
       // Match server responses to our identifiers
       setIdentifiers((prev) =>
         prev.map((item) => {
-          // Look for any result matching or general status
-          const keys = Object.keys(resultsMap);
-          // If keys exist, check if any has >= 3
-          const matchEntry = keys.map((k) => resultsMap[k]).find((r) => r.status === 'match');
+          // If we have the specific hash for this item:
+          if (item.hash && resultsMap[item.hash]) {
+            const entry = resultsMap[item.hash];
+            return {
+              ...item,
+              status: {
+                match: entry.status === 'match',
+                count: entry.count,
+                message: entry.message,
+              },
+            };
+          }
+
+          // Fallback: check if any contributed result matches
+          const allResults = Object.values(resultsMap);
+          const matchEntry = allResults.find((r) => r.status === 'match');
           if (matchEntry) {
             return {
               ...item,
@@ -174,13 +201,14 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
               },
             };
           }
-          const noMatchEntry = keys.map((k) => resultsMap[k])[0];
+
+          const firstResult = allResults[0];
           return {
             ...item,
             status: {
               match: false,
               count: 0,
-              message: noMatchEntry?.message || 'No match yet',
+              message: firstResult?.message || 'No match yet',
             },
           };
         })
@@ -190,78 +218,95 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
     }
   };
 
-  // Toggle Opt-In (Contribute)
-  const handleToggleOptIn = async (enabled: boolean) => {
-    if (enabled) {
-      // Opting in
-      setLoading(true);
-      setStatusMessage(null);
-      try {
-        const reporterPseudonym = getOrCreateReporterPseudonym();
-        const selectedItems = identifiers.filter((i) => i.selected);
-
-        if (selectedItems.length === 0) {
-          alert('Please select at least one normalized identifier to contribute.');
-          setLoading(false);
-          return;
-        }
-
-        const payload = {
-          reporterPseudonym,
-          caseId: currentCase.id,
-          category: currentCase.category || 'blackmail/extortion',
-          identifiers: selectedItems.map((item) => ({
-            type: item.type,
-            value: item.normalized,
-          })),
-        };
-
-        const res = await fetch('/api/circle/contribute', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) {
-          const errData = await res.json();
-          throw new Error(errData.error || 'Failed to contribute to Circle');
-        }
-
-        const data = await res.json();
-        setOptedIn(true);
-
-        const updatedCase: VaultCase = {
-          ...currentCase,
-          circleContribution: {
-            optedIn: true,
-            contributedAt: new Date().toISOString(),
-            contributedHashes: (data.results || []).map((r: any) => r.hash),
-            selectedIdentifiers: selectedItems.map((s) => s.normalized),
-          },
-          updatedAt: new Date().toISOString(),
-        };
-
-        await saveRealCase(activeKey, updatedCase);
-        onCaseUpdated(updatedCase);
-
-        // Update local item status based on server response
-        const resultsMap: Record<string, { isPattern: boolean; count: number }> = {};
-        (data.results || []).forEach((r: any) => {
-          resultsMap[r.hash] = r;
-        });
-
-        // Query fresh status
-        await checkStatus(selectedItems);
-        setStatusMessage('Anonymous cryptographic contribution registered.');
-      } catch (err: any) {
-        console.error('Error contributing to Circle:', err);
-        alert(err.message || 'Contribution failed');
-      } finally {
-        setLoading(false);
-      }
+  // Toggle switch clicked by user
+  const handleToggleClick = (targetState: boolean) => {
+    if (targetState) {
+      // User is enabling: DO NOT SEND YET — Require explicit confirmation modal first!
+      setShowConfirmOptInModal(true);
     } else {
-      // Opting out / Withdrawing
+      // User is disabling: Confirm withdrawal
       handleWithdraw();
+    }
+  };
+
+  // User confirmed in modal: execute contribution
+  const handleConfirmAndContribute = async () => {
+    setShowConfirmOptInModal(false);
+    setLoading(true);
+    setStatusMessage(null);
+
+    try {
+      const activePseudo = reporterPseudonym || (await getOrCreateEncryptedPseudonym(activeKey));
+      setReporterPseudonym(activePseudo);
+
+      const selectedItems = identifiers.filter((i) => i.selected);
+      if (selectedItems.length === 0) {
+        alert('Please select at least one normalized identifier to contribute.');
+        setLoading(false);
+        return;
+      }
+
+      const payload = {
+        reporterPseudonym: activePseudo,
+        caseId: currentCase.id,
+        category: currentCase.category || 'blackmail/extortion',
+        identifiers: selectedItems.map((item) => ({
+          type: item.type,
+          value: item.normalized,
+        })),
+      };
+
+      const res = await fetch('/api/circle/contribute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to contribute to Circle');
+      }
+
+      const data = await res.json();
+      setOptedIn(true);
+
+      const returnedResults: Array<{ hash: string; isPattern: boolean; count: number }> =
+        data.results || [];
+      const contributedHashes = returnedResults.map((r) => r.hash);
+
+      const updatedCase: VaultCase = {
+        ...currentCase,
+        circleContribution: {
+          optedIn: true,
+          contributedAt: new Date().toISOString(),
+          contributedHashes,
+          selectedIdentifiers: selectedItems.map((s) => s.normalized),
+        },
+        updatedAt: new Date().toISOString(),
+      };
+
+      await saveRealCase(activeKey, updatedCase);
+      onCaseUpdated(updatedCase);
+
+      // Map returned hashes to items
+      const updatedItems = identifiers.map((item, idx) => {
+        const matchingResult = returnedResults[idx];
+        const hash = matchingResult ? matchingResult.hash : item.hash;
+        return {
+          ...item,
+          hash,
+        };
+      });
+      setIdentifiers(updatedItems);
+
+      // Query fresh status
+      await checkStatus(updatedItems, activePseudo);
+      setStatusMessage('Anonymous cryptographic contribution confirmed and registered.');
+    } catch (err: any) {
+      console.error('Error contributing to Circle:', err);
+      alert(err.message || 'Contribution failed');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -270,12 +315,12 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
     if (!window.confirm('Withdraw all anonymous contribution records for this case?')) return;
     setLoading(true);
     try {
-      const reporterPseudonym = getOrCreateReporterPseudonym();
+      const activePseudo = reporterPseudonym || (await getOrCreateEncryptedPseudonym(activeKey));
       await fetch('/api/circle/withdraw', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          reporterPseudonym,
+          reporterPseudonym: activePseudo,
           caseId: currentCase.id,
         }),
       });
@@ -284,6 +329,7 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
       setIdentifiers((prev) =>
         prev.map((i) => ({
           ...i,
+          hash: undefined,
           status: undefined,
         }))
       );
@@ -317,9 +363,8 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
       const res = await fetch('/api/circle/seed-demo', { method: 'POST' });
       if (res.ok) {
         setStatusMessage('Demo reporters seeded (2 dummy records sharing fictional identifiers).');
-        if (optedIn) {
-          // Re-check status
-          await checkStatus(identifiers);
+        if (optedIn && reporterPseudonym) {
+          await checkStatus(identifiers, reporterPseudonym);
         }
       }
     } catch (err) {
@@ -330,6 +375,7 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
   };
 
   const hasPatternMatch = identifiers.some((i) => i.status?.match);
+  const selectedCount = identifiers.filter((i) => i.selected).length;
 
   return (
     <div className="space-y-5 animate-in fade-in">
@@ -358,18 +404,18 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
             className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-teal-400 hover:text-teal-300 rounded-xl text-xs font-medium border border-slate-700 transition shrink-0"
           >
             <HelpCircle className="w-3.5 h-3.5" />
-            <span>How Circle Works & Limits</span>
+            <span>How Circle Works &amp; Limits</span>
           </button>
         </div>
 
-        {/* Mandatory Plain-Language Privacy Notice */}
+        {/* Mandatory Plain-Language Privacy Notice (Exact text) */}
         <div className="mt-4 bg-teal-950/40 border border-teal-800/60 rounded-xl p-3.5 text-xs text-teal-200/90 flex items-start gap-2.5">
           <ShieldCheck className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
           <div className="space-y-1">
             <p className="font-semibold text-teal-200">
               Zero-Content Privacy Guarantee
             </p>
-            <p className="text-teal-300/80 leading-relaxed">
+            <p className="text-teal-300/80 leading-relaxed font-sans">
               &ldquo;Only scrambled codes of phone numbers or handles are shared. Your messages, images and name never leave this phone.&rdquo;
             </p>
           </div>
@@ -393,7 +439,7 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
               className="sr-only peer"
               checked={optedIn}
               disabled={loading}
-              onChange={(e) => handleToggleOptIn(e.target.checked)}
+              onChange={(e) => handleToggleClick(e.target.checked)}
             />
             <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
             <span className="ml-2 text-xs font-medium text-slate-300">
@@ -516,8 +562,11 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
               <span>Withdraw from Circle</span>
             </button>
 
-            <span className="text-[11px] text-slate-500">
-              Pseudonym ID: <code className="text-slate-400">{getOrCreateReporterPseudonym().slice(0, 16)}...</code>
+            <span className="text-[11px] text-slate-500 font-mono">
+              Encrypted Device Pseudonym:{' '}
+              <code className="text-slate-400">
+                {reporterPseudonym ? `${reporterPseudonym.slice(0, 16)}...` : 'Loading...'}
+              </code>
             </span>
           </div>
         )}
@@ -531,7 +580,8 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
             Hackathon Stage Demo Tooling
           </span>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            Pre-seed 2 dummy independent reporters sharing fictional demo number <code className="text-teal-400">+92 300 4819283</code> to trigger the live &ge;3 pattern threshold.
+            Pre-seed 2 dummy independent reporters sharing fictional demo number{' '}
+            <code className="text-teal-400">+92 300 4819283</code> to trigger the live &ge;3 pattern threshold.
           </p>
         </div>
 
@@ -544,6 +594,87 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
           <span>Re-seed Demo Pattern</span>
         </button>
       </div>
+
+      {/* Opt-In User Confirmation Modal (Requirement 14 & 2) */}
+      {showConfirmOptInModal && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 text-slate-200 shadow-2xl relative my-8 space-y-4">
+            <button
+              onClick={() => setShowConfirmOptInModal(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-teal-950 border border-teal-500/40 flex items-center justify-center text-teal-400 shrink-0">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">
+                  Confirm Anonymous Circle Contribution
+                </h3>
+                <p className="text-xs text-teal-400">Plausible Deniability &amp; Zero Content Exposure</p>
+              </div>
+            </div>
+
+            {/* Mandatory Plain-Language Guarantee */}
+            <div className="p-3.5 bg-teal-950/50 border border-teal-800 rounded-xl text-xs text-teal-200 space-y-1">
+              <p className="font-semibold text-teal-100 flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5 text-teal-400" />
+                Zero-Content Privacy Guarantee
+              </p>
+              <p className="text-teal-300 font-sans leading-relaxed">
+                &ldquo;Only scrambled codes of phone numbers or handles are shared. Your messages, images and name never leave this phone.&rdquo;
+              </p>
+            </div>
+
+            {/* Preview of identifiers being contributed */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-slate-300">
+                {selectedCount} Identifier(s) will be contributed for this case:
+              </p>
+              <div className="max-h-36 overflow-y-auto space-y-1.5 p-2.5 bg-slate-950 rounded-xl border border-slate-800 text-xs">
+                {identifiers
+                  .filter((i) => i.selected)
+                  .map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-[11px] font-mono">
+                      <span className="text-slate-300">{item.raw}</span>
+                      <span className="text-teal-400">&rarr; {item.normalized}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl text-[11px] text-slate-400 leading-relaxed flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+              <p>
+                The server computes an irreversible HMAC-SHA256 hash using a private server secret. Raw values are immediately destroyed and never logged.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowConfirmOptInModal(false)}
+                className="px-4 py-2 text-xs rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={loading || selectedCount === 0}
+                onClick={handleConfirmAndContribute}
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-teal-600 hover:bg-teal-500 text-white shadow-md transition flex items-center gap-1.5"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Confirm &amp; Anonymously Contribute</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Explainer Modal */}
       {showExplainer && <CircleExplainerModal onClose={() => setShowExplainer(false)} />}

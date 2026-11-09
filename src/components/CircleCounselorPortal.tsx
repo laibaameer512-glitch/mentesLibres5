@@ -23,10 +23,11 @@ export const CircleCounselorPortal: React.FC<CircleCounselorPortalProps> = ({ on
   const [token, setToken] = useState<string | null>(
     localStorage.getItem('sakhi_counselor_token')
   );
-  const [usernameInput, setUsernameInput] = useState('counselor@sakhi.org');
-  const [passwordInput, setPasswordInput] = useState('DemoCounselor2026!');
+  const [usernameInput, setUsernameInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isServerConfigured, setIsServerConfigured] = useState<boolean>(true);
 
   const [patterns, setPatterns] = useState<CounselorPatternItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<CircleAuditLogItem[]>([]);
@@ -34,6 +35,14 @@ export const CircleCounselorPortal: React.FC<CircleCounselorPortalProps> = ({ on
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   useEffect(() => {
+    // Safe config check without revealing any credential or username
+    fetch('/api/circle/counselor/config-hint')
+      .then((res) => res.json())
+      .then((data) => {
+        setIsServerConfigured(Boolean(data.configured));
+      })
+      .catch((err) => console.warn('Could not check counselor configuration:', err));
+
     if (token) {
       loadPortalData(token);
     }
@@ -49,16 +58,17 @@ export const CircleCounselorPortal: React.FC<CircleCounselorPortalProps> = ({ on
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           username: usernameInput.trim(),
-          password: passwordInput.trim(),
+          password: passwordInput,
         }),
       });
 
       if (!res.ok) {
-        throw new Error('Invalid credentials. Use demo credentials shown below.');
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Invalid counselor credentials.');
       }
 
       const data = await res.json();
-      const activeToken = data.token || 'demo-counselor-session-active';
+      const activeToken = data.token;
       setToken(activeToken);
       localStorage.setItem('sakhi_counselor_token', activeToken);
       await loadPortalData(activeToken);
@@ -69,11 +79,25 @@ export const CircleCounselorPortal: React.FC<CircleCounselorPortalProps> = ({ on
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const currentToken = token;
     setToken(null);
     localStorage.removeItem('sakhi_counselor_token');
     setPatterns([]);
     setAuditLogs([]);
+
+    if (currentToken) {
+      try {
+        await fetch('/api/circle/counselor/logout', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${currentToken}`,
+          },
+        });
+      } catch (err) {
+        // Silent catch on logout network error
+      }
+    }
   };
 
   const loadPortalData = async (activeToken: string) => {
@@ -87,6 +111,14 @@ export const CircleCounselorPortal: React.FC<CircleCounselorPortalProps> = ({ on
           headers: { Authorization: `Bearer ${activeToken}` },
         }),
       ]);
+
+      if (patRes.status === 401 || auditRes.status === 401) {
+        // Expired or invalid session
+        setToken(null);
+        localStorage.removeItem('sakhi_counselor_token');
+        setLoginError('Your counselor session has expired or is invalid. Please sign in again.');
+        return;
+      }
 
       if (patRes.ok) {
         const patData = await patRes.json();
@@ -157,14 +189,17 @@ export const CircleCounselorPortal: React.FC<CircleCounselorPortalProps> = ({ on
             </p>
           </div>
 
-          {/* Demo Credentials Helper */}
-          <div className="p-3 bg-amber-950/30 border border-amber-800/60 rounded-xl text-xs text-amber-200/90 space-y-1">
-            <span className="font-semibold text-amber-300">Default Demo Credentials:</span>
-            <div className="font-mono text-[11px] text-amber-200">
-              User: <span className="text-white">counselor@sakhi.org</span>
-              <br />
-              Pass: <span className="text-white">DemoCounselor2026!</span>
-            </div>
+          {/* Demo Credentials Helper (Zero username leak) */}
+          <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-slate-300 space-y-1">
+            <span className="font-semibold text-teal-300">Counselor Authentication:</span>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Sign in with the institutional counselor account configured in the server environment (<code className="text-teal-400 font-mono">COUNSELOR_USER</code> / <code className="text-teal-400 font-mono">COUNSELOR_PASS</code> in <code className="text-slate-300 font-mono">.env</code>).
+            </p>
+            {!isServerConfigured && (
+              <p className="text-[11px] text-amber-300 pt-0.5">
+                Notice: Counselor credentials are not yet configured in server environment.
+              </p>
+            )}
           </div>
 
           {loginError && (
@@ -180,6 +215,7 @@ export const CircleCounselorPortal: React.FC<CircleCounselorPortalProps> = ({ on
                 type="text"
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value)}
+                placeholder="Enter counselor email"
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-teal-500 font-mono"
                 required
               />
@@ -191,6 +227,7 @@ export const CircleCounselorPortal: React.FC<CircleCounselorPortalProps> = ({ on
                 type="password"
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="Enter counselor password"
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-teal-500 font-mono"
                 required
               />
@@ -240,14 +277,15 @@ export const CircleCounselorPortal: React.FC<CircleCounselorPortalProps> = ({ on
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-400 hidden sm:inline">counselor@sakhi.org</span>
+          <div className="flex items-center gap-3 text-xs">
+            <span className="text-slate-400 hidden sm:inline font-mono">Counselor Session (Active)</span>
             <button
               onClick={handleLogout}
-              className="p-2 bg-slate-800 hover:bg-red-950/80 text-slate-400 hover:text-red-300 rounded-xl border border-slate-700 transition"
-              title="Logout"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-red-950/80 text-slate-300 hover:text-red-300 rounded-xl border border-slate-700 hover:border-red-800 transition font-medium"
+              title="Sign Out"
             >
-              <LogOut className="w-3.5 h-3.5" />
+              <LogOut className="w-3.5 h-3.5 text-red-400" />
+              <span>Sign Out</span>
             </button>
           </div>
         </div>

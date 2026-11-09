@@ -4,14 +4,15 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { apiRouter } from './server/routes/api.ts';
 
-dotenv.config();
+dotenv.config({ override: true });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
-  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+  // AI Studio requires dev server to run strictly on port 3000
+  const PORT = 3000;
   const isProd = process.env.NODE_ENV === 'production';
 
   // Increase payload limits for screenshots and audio records

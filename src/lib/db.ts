@@ -287,6 +287,59 @@ export function getDefaultDecoyNotes(): DecoyNote[] {
 }
 
 /**
+ * Retrieves or initializes an encrypted reporter pseudonym for this device.
+ * Stored encrypted inside the vault's IndexedDB storage using AES-GCM 256.
+ * One pseudonym per device, erased if the vault is wiped.
+ */
+export async function getOrCreateEncryptedPseudonym(key: CryptoKey): Promise<string> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('auth_config', 'readwrite');
+    const store = tx.objectStore('auth_config');
+    const req = store.get('circle_device_pseudonym');
+
+    req.onsuccess = async () => {
+      try {
+        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (req.result && req.result.encryptedPayload) {
+          const decrypted = await decryptData<{ pseudonym: string }>(key, req.result.encryptedPayload);
+          if (decrypted && decrypted.pseudonym) {
+            const clean = decrypted.pseudonym.replace(/^pseudo-/, '');
+            if (UUID_REGEX.test(clean)) {
+              resolve(clean);
+              return;
+            }
+          }
+        }
+
+        // Generate a cryptographically random RFC 4122 UUID v4 for this device
+        const newPseudonym = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+              const r = (Math.random() * 16) | 0;
+              const v = c === 'x' ? r : (r & 0x3) | 0x8;
+              return v.toString(16);
+            });
+
+        const encryptedPayload = await encryptData(key, { pseudonym: newPseudonym });
+        const putReq = store.put({
+          id: 'circle_device_pseudonym',
+          encryptedPayload,
+          savedAt: new Date().toISOString(),
+        });
+
+        putReq.onsuccess = () => resolve(newPseudonym);
+        putReq.onerror = () => reject(putReq.error);
+      } catch (err) {
+        reject(err);
+      }
+    };
+
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/**
  * Panic/Wipe function: completely deletes the IndexedDB database
  */
 export async function wipeAllData(): Promise<void> {

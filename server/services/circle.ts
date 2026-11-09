@@ -1,6 +1,9 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
+
+dotenv.config({ override: true });
 
 export interface CircleRecord {
   hash: string;
@@ -32,7 +35,11 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 30;
 
 function getCircleSecret(): string {
-  return process.env.CIRCLE_SECRET || 'sakhi-vault-demo-circle-secret-key-2026';
+  const secret = process.env.CIRCLE_SECRET;
+  if (!secret || secret.trim().length === 0) {
+    throw new Error('Server configuration error: CIRCLE_SECRET environment variable is missing. Please set CIRCLE_SECRET in .env.');
+  }
+  return secret.trim();
 }
 
 /**
@@ -161,34 +168,46 @@ function saveDb(data: CircleDbData): void {
  * Pre-seeds 2 dummy reporters sharing fictional identifier (+923004819283 and @suspect_anon_29)
  * so that when the demo user opts in with the same number, distinct reporters reach exactly 3 live.
  */
-export function seedDemoReporters(force = false): { seeded: boolean; dummyCount: number } {
-  const db = loadDb();
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-  const dummy1 = 'pseudo-reporter-alpha-719';
-  const dummy2 = 'pseudo-reporter-beta-402';
+// IP rate limiting for contributions: 20 per hour per IP
+const ipContributionsMap = new Map<string, number[]>();
+const IP_CONTRIBUTION_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const MAX_CONTRIBUTIONS_PER_IP_PER_HOUR = 20;
 
-  const hasDummy1 = db.records.some((r) => r.reporterPseudonym === dummy1);
-  const hasDummy2 = db.records.some((r) => r.reporterPseudonym === dummy2);
+export function checkIpContributionRateLimit(ip: string): boolean {
+  if (!ip) return true;
+  const now = Date.now();
+  const timestamps = (ipContributionsMap.get(ip) || []).filter((t) => now - t < IP_CONTRIBUTION_WINDOW_MS);
 
-  if (!force && hasDummy1 && hasDummy2) {
-    return { seeded: false, dummyCount: 2 };
+  if (timestamps.length >= MAX_CONTRIBUTIONS_PER_IP_PER_HOUR) {
+    return false;
   }
 
+  timestamps.push(now);
+  ipContributionsMap.set(ip, timestamps);
+  return true;
+}
+
+/**
+ * Pre-seeds 2 dummy reporters sharing fictional identifier (+923004819283 and @suspect_anon_29)
+ * In demo mode, recreates circleDb.json on server start with only the 2 fictional seeded reporters (removing test records).
+ */
+export function seedDemoReporters(force = true): { seeded: boolean; dummyCount: number } {
+  // Use valid UUIDs for demo reporters
+  const dummy1 = '11111111-1111-4111-8111-111111111111';
+  const dummy2 = '22222222-2222-4222-8222-222222222222';
+
   // Target demo fictional phone: +923004819283
-  const demoPhoneNormalized = normalizePhone('+92 300 4819283'); // +923004819283
+  const demoPhoneNormalized = normalizePhone('+92 300 4819283');
   const demoPhoneHash = computeIdentifierHmac(demoPhoneNormalized);
 
   // Target demo handle: @suspect_anon_29
-  const demoHandleNormalized = normalizeHandle('@suspect_anon_29'); // suspect_anon_29
+  const demoHandleNormalized = normalizeHandle('@suspect_anon_29');
   const demoHandleHash = computeIdentifierHmac(demoHandleNormalized);
 
-  // Remove existing dummy records if forcing
-  if (force) {
-    db.records = db.records.filter((r) => r.reporterPseudonym !== dummy1 && r.reporterPseudonym !== dummy2);
-  }
-
-  // Dummy 1: Contributed in Oct 2026
-  db.records.push(
+  const cleanRecords: CircleRecord[] = [
+    // Dummy 1: Contributed in Oct 2026
     {
       hash: demoPhoneHash,
       reporterPseudonym: dummy1,
@@ -204,11 +223,8 @@ export function seedDemoReporters(force = false): { seeded: boolean; dummyCount:
       month: '2026-10',
       caseId: 'dummy-case-alpha',
       createdAt: new Date('2026-10-18T12:00:00Z').toISOString(),
-    }
-  );
-
-  // Dummy 2: Contributed in Nov 2026
-  db.records.push(
+    },
+    // Dummy 2: Contributed in Nov 2026
     {
       hash: demoPhoneHash,
       reporterPseudonym: dummy2,
@@ -224,22 +240,31 @@ export function seedDemoReporters(force = false): { seeded: boolean; dummyCount:
       month: '2026-11',
       caseId: 'dummy-case-beta',
       createdAt: new Date('2026-11-02T16:00:00Z').toISOString(),
-    }
-  );
+    },
+  ];
 
-  db.auditLogs.unshift({
-    actor: 'system',
-    action: 'PRESEED_DEMO_REPORTERS',
-    time: new Date().toISOString(),
-  });
+  const db: CircleDbData = {
+    records: cleanRecords,
+    auditLogs: [
+      {
+        actor: 'system',
+        action: 'PRESEED_DEMO_REPORTERS',
+        time: new Date().toISOString(),
+      },
+    ],
+  };
 
   saveDb(db);
-  console.log('[Sakhi Circle] Pre-seeded 2 dummy independent reporters for fictional demo identifiers.');
+  console.log('[Sakhi Circle] Recreated circleDb.json with only the 2 fictional seeded reporters for demo mode.');
   return { seeded: true, dummyCount: 2 };
 }
 
-// Auto-seed on module import
-seedDemoReporters(false);
+// Auto-seed on server start if CIRCLE_SECRET is configured (recreating clean seeded store)
+try {
+  seedDemoReporters(true);
+} catch (err: any) {
+  console.warn('[Sakhi Circle] Notice:', err.message || err);
+}
 
 /**
  * Calculates distinct reporter pseudonyms for a given hash
@@ -268,8 +293,8 @@ export function contributeIdentifiers(
   contributedCount: number;
   results: Array<{ hash: string; isPattern: boolean; count: number }>;
 } {
-  if (!reporterPseudonym) {
-    throw new Error('reporterPseudonym is required');
+  if (!reporterPseudonym || !UUID_REGEX.test(reporterPseudonym)) {
+    throw new Error('Invalid reporter pseudonym: must be a valid UUID.');
   }
 
   if (!checkRateLimit(reporterPseudonym)) {

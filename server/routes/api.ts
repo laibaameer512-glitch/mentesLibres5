@@ -15,9 +15,88 @@ import {
   getCounselorPatterns,
   getCounselorAuditLogs,
   seedDemoReporters,
+  checkIpContributionRateLimit,
 } from '../services/circle.ts';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
+import dotenv from 'dotenv';
+
+dotenv.config({ override: true });
+
+// Counselor In-Memory Session Store with 30-minute expiration
+interface CounselorSession {
+  token: string;
+  username: string;
+  createdAt: number;
+  expiresAt: number;
+}
+const counselorSessions = new Map<string, CounselorSession>();
+const SESSION_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
+
+// Failed login attempt tracking: client IP -> array of failed timestamps (limit 5 per 10 minutes)
+const failedLoginsMap = new Map<string, number[]>();
+const FAILED_LOGIN_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+const MAX_FAILED_LOGINS = 5;
+
+function getClientIp(req: Request): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+function checkLoginRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const attempts = (failedLoginsMap.get(ip) || []).filter((t) => now - t < FAILED_LOGIN_WINDOW_MS);
+  failedLoginsMap.set(ip, attempts);
+  return attempts.length < MAX_FAILED_LOGINS;
+}
+
+function recordFailedLogin(ip: string): void {
+  const now = Date.now();
+  const attempts = (failedLoginsMap.get(ip) || []).filter((t) => now - t < FAILED_LOGIN_WINDOW_MS);
+  attempts.push(now);
+  failedLoginsMap.set(ip, attempts);
+}
+
+function clearFailedLogins(ip: string): void {
+  failedLoginsMap.delete(ip);
+}
+
+// Compare strings in constant time using crypto.timingSafeEqual
+function timingSafeEqualStrings(a: string, b: string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const hashA = crypto.createHash('sha256').update(a).digest();
+  const hashB = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
+}
+
+// Verification middleware for all /api/circle/counselor/* routes except login
+function requireCounselorAuth(req: Request, res: Response, next: () => void) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized: Missing or invalid Authorization header.' });
+  }
+
+  const token = authHeader.slice(7).trim();
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized: Bearer token is empty.' });
+  }
+
+  const session = counselorSessions.get(token);
+  if (!session) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid or unknown counselor session.' });
+  }
+
+  if (Date.now() > session.expiresAt) {
+    counselorSessions.delete(token);
+    return res.status(401).json({ error: 'Unauthorized: Counselor session has expired. Please log in again.' });
+  }
+
+  next();
+}
 
 export const apiRouter = Router();
 
@@ -274,9 +353,17 @@ apiRouter.post('/silent-alert', (req: Request, res: Response) => {
 // Contribute normalized identifiers (HMAC-SHA256 calculated immediately; raw values discarded)
 apiRouter.post('/circle/contribute', (req: Request, res: Response) => {
   try {
+    const clientIp = getClientIp(req);
+    if (!checkIpContributionRateLimit(clientIp)) {
+      return res.status(429).json({
+        error: 'Contribution rate limit exceeded: maximum 20 contributions per hour per IP address.',
+      });
+    }
+
     const { reporterPseudonym, identifiers, category, caseId } = req.body || {};
-    if (!reporterPseudonym) {
-      return res.status(400).json({ error: 'reporterPseudonym is required' });
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!reporterPseudonym || !UUID_REGEX.test(reporterPseudonym)) {
+      return res.status(400).json({ error: 'Invalid reporter pseudonym: must be a valid UUID.' });
     }
     if (!Array.isArray(identifiers) || identifiers.length === 0) {
       return res.status(400).json({ error: 'identifiers array is required' });
@@ -348,31 +435,77 @@ apiRouter.post('/circle/seed-demo', (_req: Request, res: Response) => {
   }
 });
 
-// Counselor Portal Login
-apiRouter.post('/circle/counselor/login', (req: Request, res: Response) => {
-  const { username, password } = req.body || {};
-  const expectedUser = process.env.COUNSELOR_USER || 'counselor@sakhi.org';
-  const expectedPass = process.env.COUNSELOR_PASS || 'DemoCounselor2026!';
+// Counselor Portal Config Hint (safe status check: NEVER reveals username)
+apiRouter.get('/circle/counselor/config-hint', (_req: Request, res: Response) => {
+  dotenv.config({ override: true });
+  const hasUser = Boolean(process.env.COUNSELOR_USER);
+  const hasPass = Boolean(process.env.COUNSELOR_PASS);
+  return res.json({
+    configured: Boolean(hasUser && hasPass),
+  });
+});
 
-  if (username === expectedUser && password === expectedPass) {
-    return res.json({
-      success: true,
-      token: 'demo-counselor-session-active',
-      username: expectedUser,
-      role: 'counselor',
+// Counselor Portal Login: rate limited (5 failed attempts per 10 mins) with timing-safe comparison
+apiRouter.post('/circle/counselor/login', (req: Request, res: Response) => {
+  dotenv.config({ override: true });
+  const clientIp = getClientIp(req);
+
+  if (!checkLoginRateLimit(clientIp)) {
+    return res.status(429).json({
+      error: 'Too many failed login attempts. Please try again after 10 minutes.',
     });
   }
 
+  const { username, password } = req.body || {};
+  const expectedUser = process.env.COUNSELOR_USER;
+  const expectedPass = process.env.COUNSELOR_PASS;
+
+  if (!expectedUser || !expectedPass) {
+    return res.status(500).json({
+      error: 'Server configuration error: COUNSELOR_USER or COUNSELOR_PASS environment variable is missing. Please configure them in .env.',
+    });
+  }
+
+  const userMatches = timingSafeEqualStrings(String(username || ''), expectedUser);
+  const passMatches = timingSafeEqualStrings(String(password || ''), expectedPass);
+
+  if (userMatches && passMatches) {
+    clearFailedLogins(clientIp);
+
+    // Generate cryptographically secure random session token
+    const token = crypto.randomBytes(32).toString('hex');
+    const now = Date.now();
+    counselorSessions.set(token, {
+      token,
+      username: expectedUser,
+      createdAt: now,
+      expiresAt: now + SESSION_EXPIRY_MS,
+    });
+
+    return res.json({
+      success: true,
+      token,
+      role: 'counselor',
+      expiresInMinutes: 30,
+    });
+  }
+
+  recordFailedLogin(clientIp);
   return res.status(401).json({ error: 'Invalid counselor credentials' });
 });
 
-// Counselor Patterns List (Zero raw identifiers, zero case data)
-apiRouter.get('/circle/counselor/patterns', (req: Request, res: Response) => {
+// Counselor Portal Logout: terminates active session token in memory
+apiRouter.post('/circle/counselor/logout', requireCounselorAuth, (req: Request, res: Response) => {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.includes('demo-counselor-session-active')) {
-    return res.status(401).json({ error: 'Unauthorized counselor session' });
+  const token = authHeader?.slice(7).trim();
+  if (token) {
+    counselorSessions.delete(token);
   }
+  return res.json({ success: true, message: 'Logged out successfully.' });
+});
 
+// Counselor Patterns List (Verified by requireCounselorAuth; Zero raw identifiers, zero case data)
+apiRouter.get('/circle/counselor/patterns', requireCounselorAuth, (_req: Request, res: Response) => {
   try {
     const patterns = getCounselorPatterns();
     return res.json({ patterns });
@@ -382,13 +515,8 @@ apiRouter.get('/circle/counselor/patterns', (req: Request, res: Response) => {
   }
 });
 
-// Counselor Audit Log (actor, action, time, NO content)
-apiRouter.get('/circle/counselor/audit', (req: Request, res: Response) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.includes('demo-counselor-session-active')) {
-    return res.status(401).json({ error: 'Unauthorized counselor session' });
-  }
-
+// Counselor Audit Log (Verified by requireCounselorAuth; actor, action, time, NO content)
+apiRouter.get('/circle/counselor/audit', requireCounselorAuth, (_req: Request, res: Response) => {
   try {
     const auditLogs = getCounselorAuditLogs();
     return res.json({ auditLogs });

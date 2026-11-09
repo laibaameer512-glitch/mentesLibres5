@@ -43,17 +43,28 @@ All AI processing runs strictly on the Node/Express backend (`server.ts`):
 - **Zero-Content Privacy Principle**: Solves serial harassment discovery without exposing victim identity or case content.
   - *"Only scrambled codes of phone numbers or handles are shared. Your messages, images and name never leave this phone."*
 - **Cryptographic HMAC-SHA256**: Identifiers are normalized (+92 Pakistani phone format, lowercase handles without `@`), transmitted over HTTPS to `/api/circle/contribute`, where the backend immediately computes HMAC-SHA256 with `CIRCLE_SECRET` and stores only `{hash, reporterPseudonym, category, month}` in `server/data/circleDb.json`. Raw values are immediately discarded and never logged.
-- **Pattern Threshold ($\ge 3$ Distinct Reporters)**: A pattern exists only when the same hash is reported by 3 or more distinct reporting devices. Below threshold, reporters see *"No match yet"*; at or above threshold, reporters see *"Other independent reports match this identifier (3 in total)"*. Details, dates, or other reporters' data are never exposed.
-- **Withdrawal**: A single tap deletes all of that reporter's records for that case from the server database.
+- **Pattern Threshold ($\ge 3$ Distinct Reporters)**: A pattern exists only when the same hash is reported by 3 or more distinct reporting devices (counts distinct reporters, not reports). Below threshold, reporters see *"No match yet"*; at or above threshold, reporters see *"Other independent reports match this identifier (N in total)"*. Details, dates, or other reporters' data are never exposed.
+- **Encrypted Reporter Pseudonym**: Random device UUID generated once per handset and stored encrypted in the vault using AES-GCM 256. Wiped when the vault is destroyed.
+- **Explicit Confirmation Modal**: Toggling Circle opt-in opens a confirmation dialog previewing normalized identifiers and privacy guarantees before transmitting any cryptographic hashes.
+- **Withdrawal**: A single tap deletes all of that reporter's records for that case from the server database, immediately dropping pattern counts if applicable.
+- **Environment Variables Setup**:
+  Configure the following variables in `.env`:
+  ```bash
+  CIRCLE_SECRET=your_secret_key_here
+  COUNSELOR_USER=counselor_email@example.org
+  COUNSELOR_PASS=your_secure_password_here
+  GEMINI_API_KEY=your_gemini_api_key_here
+  ```
+  *Security Notice: If `CIRCLE_SECRET`, `COUNSELOR_USER`, or `COUNSELOR_PASS` is missing, endpoints fail with clear error messages instead of falling back to insecure defaults.*
 - **Counselor Demo Portal (`/counselor`)**:
-  - Demo login credentials:
-    - **Username**: `counselor@sakhi.org`
-    - **Password**: `DemoCounselor2026!`
+  - Accessible directly at `/counselor` or via Settings in the vault.
+  - Requires `COUNSELOR_USER` and `COUNSELOR_PASS` as set in `.env`.
   - Shows only short hash prefixes (e.g. `#a4f910`), distinct reporter count, active months, and category. Zero names, phone numbers, or case text.
-  - Includes a zero-content system audit log (actor, action, time).
-- **Stage Demo Tooling**:
-  - The server pre-seeds 2 dummy independent reporters sharing fictional demo number `+92 300 4819283`.
-  - When the presenter loads the demo case and opts into Circle with that number, the live reporter count instantly reaches 3 on stage.
+  - Includes an immutable system audit log (actor, action, time) with zero content.
+- **Stage Demo Tooling & Seeding**:
+  - On server start with `CIRCLE_SECRET` set, the server pre-seeds 2 dummy independent reporters sharing fictional demo number `+92 300 4819283` and handle `@suspect_anon_29`.
+  - When the presenter loads the demo case and opts into Circle with that number, the live reporter count instantly reaches 3 on stage and triggers the "Independent Serial Pattern Identified" alert.
+  - **Re-seeding**: Use the "Re-seed Demo Pattern" button in Circle Module or Counselor Portal, or call `POST /api/circle/seed-demo`.
 
 ---
 
