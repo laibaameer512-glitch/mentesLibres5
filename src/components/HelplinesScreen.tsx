@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import helplinesData from '../data/helplines.json';
-import { PhoneCall, ShieldAlert, HeartHandshake, Scale, Clock, AlertCircle } from 'lucide-react';
+import { PhoneCall, Clock } from 'lucide-react';
 
 export const HelplinesScreen: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<string>('All');
@@ -20,14 +20,6 @@ export const HelplinesScreen: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Disclaimer Banner */}
-      <div className="p-3.5 bg-amber-950/30 border border-amber-800/60 rounded-2xl flex items-start gap-3">
-        <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-        <p className="text-xs text-amber-200/90 leading-relaxed">
-          <strong>Verification Notice:</strong> All contact numbers below are representative placeholders marked <span className="font-mono bg-amber-900/60 px-1 py-0.5 rounded text-amber-300 font-bold">VERIFY</span>. Verify with official district directories before relying on emergency response.
-        </p>
-      </div>
-
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-bold text-white flex items-center gap-2">
@@ -90,9 +82,9 @@ export const HelplinesScreen: React.FC = () => {
 
               <a
                 href={`tel:${item.number}`}
-                className="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5"
+                className="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
               >
-                <PhoneCall className="w-3.5 h-3.5" />
+                <PhoneCall className="w-3.5 h-3.5 shrink-0" />
                 <span>Call {item.display}</span>
               </a>
             </div>

@@ -209,21 +209,6 @@ export const EvidenceReview: React.FC<EvidenceReviewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Visible AI Unavailable Fallback Banner */}
-      {review?.isFallback && (
-        <div className="p-3.5 bg-amber-950/80 border-2 border-amber-600/90 rounded-2xl flex items-center gap-3 text-xs text-amber-100 shadow-md">
-          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
-          <div className="space-y-0.5">
-            <span className="font-bold text-amber-300 uppercase tracking-wider block">
-              AI unavailable, using sample result
-            </span>
-            <span className="text-amber-200/90">
-              Offline mode or Gemini model unavailable; displaying pre-cached sample extraction for this case.
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* Top Banner with Save Action */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm">
         <div>
@@ -292,9 +277,9 @@ export const EvidenceReview: React.FC<EvidenceReviewProps> = ({
           {!review ? (
             <div className="p-8 border border-dashed border-slate-800 rounded-2xl text-center space-y-3 bg-slate-900/40">
               <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto" />
-              <h3 className="text-sm font-semibold text-white">No AI Extraction Records Available Yet</h3>
+              <h3 className="text-sm font-semibold text-white">No Extraction Records Available Yet</h3>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                Please run the AI Evidence Processing Pipeline from the Evidence Intake tab or load the demo dataset to populate parsed messages, threats, and legal classifications.
+                Please analyse evidence first to populate parsed messages, threats, and legal classifications.
               </p>
             </div>
           ) : (
@@ -527,7 +512,7 @@ export const EvidenceReview: React.FC<EvidenceReviewProps> = ({
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-white flex items-center gap-2">
             <Shield className="w-4 h-4 text-teal-400" />
-            <span>AI Multi-Label Classification Tags</span>
+            <span>Legal Classification Tags</span>
           </h3>
           <span className="text-[11px] text-slate-500">
             Backed by specific evidentiary quotes

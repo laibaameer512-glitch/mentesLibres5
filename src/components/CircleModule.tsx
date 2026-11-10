@@ -3,23 +3,23 @@ import { VaultCase, saveRealCase, getOrCreateEncryptedPseudonym } from '../lib/d
 import { CircleExplainerModal } from './CircleExplainerModal.tsx';
 import {
   ShieldCheck,
-  ShieldAlert,
-  HelpCircle,
-  Hash,
   Users,
-  RefreshCw,
-  Trash2,
   CheckCircle2,
-  Sparkles,
   Lock,
   X,
+  HelpCircle,
+  FolderOpen,
+  ArrowRight,
   AlertCircle,
 } from 'lucide-react';
 
 interface CircleModuleProps {
-  currentCase: VaultCase;
+  currentCase?: VaultCase;
+  cases?: VaultCase[];
+  initialCaseId?: string;
   activeKey: CryptoKey;
   onCaseUpdated: (c: VaultCase) => void;
+  language?: 'ur' | 'en';
 }
 
 interface IdentifierItem {
@@ -73,29 +73,47 @@ function detectIdentifierType(val: string): 'phone' | 'handle' | 'location' | 'o
 }
 
 export const CircleModule: React.FC<CircleModuleProps> = ({
-  currentCase,
+  currentCase: propCurrentCase,
+  cases = [],
+  initialCaseId,
   activeKey,
   onCaseUpdated,
+  language = 'ur',
 }) => {
+  // Case selection
+  const [selectedCaseId, setSelectedCaseId] = useState<string>(() => {
+    if (propCurrentCase) return propCurrentCase.id;
+    if (initialCaseId) return initialCaseId;
+    if (cases.length > 0) return cases[0].id;
+    return '';
+  });
+
+  const activeCase =
+    cases.find((c) => c.id === selectedCaseId) || propCurrentCase || cases[0] || null;
+
   const [showExplainer, setShowExplainer] = useState(false);
   const [showConfirmOptInModal, setShowConfirmOptInModal] = useState(false);
+  const [showConfirmWithdrawModal, setShowConfirmWithdrawModal] = useState(false);
   const [reporterPseudonym, setReporterPseudonym] = useState<string | null>(null);
   const [optedIn, setOptedIn] = useState<boolean>(
-    Boolean(currentCase.circleContribution?.optedIn)
+    Boolean(activeCase?.circleContribution?.optedIn)
   );
   const [identifiers, setIdentifiers] = useState<IdentifierItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [demoSeeding, setDemoSeeding] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // 1. Load device reporter pseudonym encrypted from vault IndexedDB
+  // Sync optedIn when active case changes
+  useEffect(() => {
+    setOptedIn(Boolean(activeCase?.circleContribution?.optedIn));
+    setErrorMessage(null);
+  }, [activeCase?.id, activeCase?.circleContribution?.optedIn]);
+
+  // Load device reporter pseudonym encrypted from vault IndexedDB
   useEffect(() => {
     let isMounted = true;
     getOrCreateEncryptedPseudonym(activeKey)
       .then((pseudo) => {
-        if (isMounted) {
-          setReporterPseudonym(pseudo);
-        }
+        if (isMounted) setReporterPseudonym(pseudo);
       })
       .catch((err) => {
         console.error('Failed to load encrypted device pseudonym:', err);
@@ -105,15 +123,20 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
     };
   }, [activeKey]);
 
-  // 2. Extract and normalize available identifiers from the case
+  // Extract and normalize available identifiers from the active case
   useEffect(() => {
+    if (!activeCase) {
+      setIdentifiers([]);
+      return;
+    }
+
     const rawList: string[] = [];
-    if (currentCase.extractedReview?.identifiers) {
-      rawList.push(...currentCase.extractedReview.identifiers);
+    if (activeCase.extractedReview?.identifiers) {
+      rawList.push(...activeCase.extractedReview.identifiers);
     }
 
     // Also scan evidence items for phone numbers or handles in titles/notes
-    currentCase.evidenceItems.forEach((ev) => {
+    activeCase.evidenceItems.forEach((ev) => {
       const matchPhone = ev.personLabel.match(/(\+?92\s?3\d{2}[\s\-]?\d{7}|03\d{2}[\s\-]?\d{7})/);
       if (matchPhone && !rawList.includes(matchPhone[1])) {
         rawList.push(matchPhone[1]);
@@ -139,7 +162,7 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
       else normalized = normalizeGeneric(raw);
 
       // Pre-map saved hash if case was previously contributed
-      const savedHash = currentCase.circleContribution?.contributedHashes?.[idx];
+      const savedHash = activeCase.circleContribution?.contributedHashes?.[idx];
 
       return {
         type,
@@ -152,30 +175,32 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
 
     setIdentifiers(builtItems);
 
-    if (currentCase.circleContribution?.optedIn && reporterPseudonym) {
+    if (activeCase.circleContribution?.optedIn && reporterPseudonym) {
       checkStatus(builtItems, reporterPseudonym);
     }
-  }, [currentCase.id, reporterPseudonym]);
+  }, [activeCase?.id, reporterPseudonym]);
 
   // Check matching status with server
   const checkStatus = async (itemsToCheck: IdentifierItem[], pseudo?: string) => {
     const activePseudonym = pseudo || reporterPseudonym;
     if (!activePseudonym) return;
 
+    setLoading(true);
+    setErrorMessage(null);
     try {
-      // Query GET /api/circle/status?reporterPseudonym=...
       const queryUrl = `/api/circle/status?reporterPseudonym=${encodeURIComponent(activePseudonym)}`;
       const res = await fetch(queryUrl);
 
-      if (!res.ok) return;
+      if (!res.ok) {
+        setErrorMessage('دوبارہ کوشش کریں / Please try again');
+        return;
+      }
       const data = await res.json();
       const resultsMap: Record<string, { status: 'match' | 'no_match'; count: number; message: string }> =
         data.results || {};
 
-      // Match server responses to our identifiers
       setIdentifiers((prev) =>
         prev.map((item) => {
-          // If we have the specific hash for this item:
           if (item.hash && resultsMap[item.hash]) {
             const entry = resultsMap[item.hash];
             return {
@@ -188,7 +213,6 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
             };
           }
 
-          // Fallback: check if any contributed result matches
           const allResults = Object.values(resultsMap);
           const matchEntry = allResults.find((r) => r.status === 'match');
           if (matchEntry) {
@@ -213,27 +237,28 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
           };
         })
       );
-    } catch (err) {
-      console.warn('Failed to query circle status:', err);
+    } catch {
+      setErrorMessage('دوبارہ کوشش کریں / Please try again');
+    } finally {
+      setLoading(false);
     }
   };
 
   // Toggle switch clicked by user
   const handleToggleClick = (targetState: boolean) => {
     if (targetState) {
-      // User is enabling: DO NOT SEND YET — Require explicit confirmation modal first!
       setShowConfirmOptInModal(true);
     } else {
-      // User is disabling: Confirm withdrawal
-      handleWithdraw();
+      setShowConfirmWithdrawModal(true);
     }
   };
 
-  // User confirmed in modal: execute contribution
+  // User confirmed opt-in
   const handleConfirmAndContribute = async () => {
+    if (!activeCase) return;
     setShowConfirmOptInModal(false);
     setLoading(true);
-    setStatusMessage(null);
+    setErrorMessage(null);
 
     try {
       const activePseudo = reporterPseudonym || (await getOrCreateEncryptedPseudonym(activeKey));
@@ -241,15 +266,15 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
 
       const selectedItems = identifiers.filter((i) => i.selected);
       if (selectedItems.length === 0) {
-        alert('Please select at least one normalized identifier to contribute.');
+        setErrorMessage('دوبارہ کوشش کریں / Please try again');
         setLoading(false);
         return;
       }
 
       const payload = {
         reporterPseudonym: activePseudo,
-        caseId: currentCase.id,
-        category: currentCase.category || 'blackmail/extortion',
+        caseId: activeCase.id,
+        category: activeCase.category || 'harassment',
         identifiers: selectedItems.map((item) => ({
           type: item.type,
           value: item.normalized,
@@ -263,8 +288,7 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
       });
 
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to contribute to Circle');
+        throw new Error('Contribution request failed');
       }
 
       const data = await res.json();
@@ -275,7 +299,7 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
       const contributedHashes = returnedResults.map((r) => r.hash);
 
       const updatedCase: VaultCase = {
-        ...currentCase,
+        ...activeCase,
         circleContribution: {
           optedIn: true,
           contributedAt: new Date().toISOString(),
@@ -288,7 +312,6 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
       await saveRealCase(activeKey, updatedCase);
       onCaseUpdated(updatedCase);
 
-      // Map returned hashes to items
       const updatedItems = identifiers.map((item, idx) => {
         const matchingResult = returnedResults[idx];
         const hash = matchingResult ? matchingResult.hash : item.hash;
@@ -298,22 +321,21 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
         };
       });
       setIdentifiers(updatedItems);
-
-      // Query fresh status
       await checkStatus(updatedItems, activePseudo);
-      setStatusMessage('Anonymous cryptographic contribution confirmed and registered.');
-    } catch (err: any) {
-      console.error('Error contributing to Circle:', err);
-      alert(err.message || 'Contribution failed');
+    } catch {
+      setErrorMessage('دوبارہ کوشش کریں / Please try again');
     } finally {
       setLoading(false);
     }
   };
 
-  // Withdraw this reporter's records for this case
-  const handleWithdraw = async () => {
-    if (!window.confirm('Withdraw all anonymous contribution records for this case?')) return;
+  // Withdraw case records
+  const handleExecuteWithdraw = async () => {
+    if (!activeCase) return;
+    setShowConfirmWithdrawModal(false);
     setLoading(true);
+    setErrorMessage(null);
+
     try {
       const activePseudo = reporterPseudonym || (await getOrCreateEncryptedPseudonym(activeKey));
       await fetch('/api/circle/withdraw', {
@@ -321,7 +343,7 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           reporterPseudonym: activePseudo,
-          caseId: currentCase.id,
+          caseId: activeCase.id,
         }),
       });
 
@@ -335,7 +357,7 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
       );
 
       const updatedCase: VaultCase = {
-        ...currentCase,
+        ...activeCase,
         circleContribution: {
           optedIn: false,
           contributedAt: undefined,
@@ -347,329 +369,365 @@ export const CircleModule: React.FC<CircleModuleProps> = ({
 
       await saveRealCase(activeKey, updatedCase);
       onCaseUpdated(updatedCase);
-      setStatusMessage('All anonymous contribution records for this case have been withdrawn.');
-    } catch (err) {
-      console.error('Failed to withdraw from circle:', err);
-      alert('Failed to withdraw from Circle.');
+    } catch {
+      setErrorMessage('دوبارہ کوشش کریں / Please try again');
     } finally {
       setLoading(false);
     }
   };
 
-  // Re-seed demo dummy reporters (to demonstrate threshold live on stage)
-  const handleSeedDemo = async () => {
-    setDemoSeeding(true);
-    try {
-      const res = await fetch('/api/circle/seed-demo', { method: 'POST' });
-      if (res.ok) {
-        setStatusMessage('Demo reporters seeded (2 dummy records sharing fictional identifiers).');
-        if (optedIn && reporterPseudonym) {
-          await checkStatus(identifiers, reporterPseudonym);
-        }
-      }
-    } catch (err) {
-      console.warn('Failed to seed demo dummy records:', err);
-    } finally {
-      setDemoSeeding(false);
-    }
-  };
-
-  const hasPatternMatch = identifiers.some((i) => i.status?.match);
-  const selectedCount = identifiers.filter((i) => i.selected).length;
+  if (!activeCase) {
+    return (
+      <div className="p-8 border border-dashed border-slate-800 rounded-2xl text-center text-xs text-slate-500 space-y-2">
+        <Users className="w-8 h-8 text-slate-700 mx-auto" />
+        <p className="font-urdu text-base text-slate-400">کوئی فعال کیس موجود نہیں ہے۔</p>
+        <p>No active case available.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-5 animate-in fade-in">
-      {/* Header Banner */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-teal-950 border border-teal-500/40 flex items-center justify-center text-teal-400 shrink-0 mt-0.5">
-              <Users className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-white">Sakhi Circle</h2>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-teal-950 text-teal-400 border border-teal-800">
-                  HMAC-SHA256 Anonymous Corroboration
-                </span>
-              </div>
-              <p className="text-xs text-slate-300 mt-1 max-w-xl">
-                Detect if the same phone number or handle is harassing multiple independent victims without revealing your identity, messages, or case details.
-              </p>
-            </div>
+    <div className="space-y-5 pb-6">
+      {/* ── 1. CASE PICKER ──────────────────────────────────────────────── */}
+      {cases.length > 1 && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2">
+          <label className="block text-xs font-semibold text-slate-300">
+            <span className="font-urdu block text-sm text-teal-300">کیس منتخب کریں</span>
+            Select Case
+          </label>
+          <div className="relative">
+            <select
+              value={selectedCaseId}
+              onChange={(e) => setSelectedCaseId(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-teal-500 font-medium min-h-[52px]"
+            >
+              {cases.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title} ({c.evidenceItems.length} items)
+                </option>
+              ))}
+            </select>
           </div>
-
-          <button
-            onClick={() => setShowExplainer(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-teal-400 hover:text-teal-300 rounded-xl text-xs font-medium border border-slate-700 transition shrink-0"
-          >
-            <HelpCircle className="w-3.5 h-3.5" />
-            <span>How Circle Works &amp; Limits</span>
-          </button>
         </div>
+      )}
 
-        {/* Mandatory Plain-Language Privacy Notice (Exact text) */}
-        <div className="mt-4 bg-teal-950/40 border border-teal-800/60 rounded-xl p-3.5 text-xs text-teal-200/90 flex items-start gap-2.5">
-          <ShieldCheck className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <p className="font-semibold text-teal-200">
-              Zero-Content Privacy Guarantee
-            </p>
-            <p className="text-teal-300/80 leading-relaxed font-sans">
-              &ldquo;Only scrambled codes of phone numbers or handles are shared. Your messages, images and name never leave this phone.&rdquo;
-            </p>
-          </div>
+      {/* ── 2. PLAIN EXPLANATION (2 short lines) ─────────────────────────── */}
+      <div className="p-4 bg-teal-950/40 border border-teal-800/60 rounded-2xl flex items-start gap-3">
+        <ShieldCheck className="w-6 h-6 text-teal-400 shrink-0 mt-0.5" />
+        <div className="space-y-1">
+          <p className="font-urdu text-base text-teal-100 leading-snug">
+            آپ کی معلومات خفیہ رہتی ہیں۔ صرف نمبر/ہینڈل کا خفیہ کوڈ شیئر ہوتا ہے۔
+          </p>
+          <p className="text-xs text-teal-300/80 leading-relaxed">
+            Your details stay private. Only a secret code of the number/handle is shared.
+          </p>
         </div>
       </div>
 
-      {/* Opt-in Controller Card */}
+      {/* Loading & Error feedback */}
+      {loading && (
+        <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl text-center text-xs text-teal-300 animate-pulse">
+          <span>کام جاری ہے / Working...</span>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="p-3 bg-red-950/50 border border-red-800 rounded-xl text-center text-xs text-red-300 flex items-center justify-center gap-2">
+          <AlertCircle className="w-4 h-4 text-red-400" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
+      {/* ── 3. OPT-IN TOGGLE FOR THAT CASE ──────────────────────────────── */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-sm">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-          <div>
-            <h3 className="text-sm font-semibold text-white">Anonymous Cross-Case Matching</h3>
-            <p className="text-xs text-slate-400">
-              Opt-in is strictly per case. Default is OFF.
-            </p>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <span className="font-urdu text-base text-white leading-snug block">خفیہ پیٹرن چیک</span>
+            <span className="text-xs text-slate-400">Anonymous Pattern Matching</span>
           </div>
 
-          {/* Toggle Switch */}
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              className="sr-only peer"
-              checked={optedIn}
-              disabled={loading}
-              onChange={(e) => handleToggleClick(e.target.checked)}
-            />
-            <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
-            <span className="ml-2 text-xs font-medium text-slate-300">
-              {optedIn ? 'Contributed' : 'Disabled'}
+          {/* Big Toggle Switch (min 56px touch target) */}
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => handleToggleClick(!optedIn)}
+            className={`px-5 py-3 rounded-2xl text-xs font-bold transition flex items-center gap-2 min-h-[56px] border ${
+              optedIn
+                ? 'bg-teal-600 text-white border-teal-500 shadow-md'
+                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+            }`}
+          >
+            <span className="font-urdu text-sm leading-none">
+              {optedIn ? 'فعال ہے' : 'غیر فعال'}
             </span>
-          </label>
+            <span>/ {optedIn ? 'ON' : 'OFF'}</span>
+          </button>
         </div>
 
-        {statusMessage && (
-          <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-teal-300 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
-            <span>{statusMessage}</span>
-          </div>
-        )}
+        {/* Existing consent text */}
+        <p className="text-xs text-slate-400 leading-relaxed border-t border-slate-800/80 pt-3">
+          <span className="font-urdu block text-slate-300 mb-0.5">
+            صرف نمبر یا ہینڈل کا خفیہ کوڈ شیئر ہوتا ہے۔ آپ کے پیغامات، تصاویر اور نام فون سے باہر کبھی نہیں جاتے۔
+          </span>
+          Only scrambled codes of phone numbers or handles are shared. Your messages, images and name never leave this phone.
+        </p>
 
-        {/* Identifiers Selection & Normalization Section */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-300">
-              Extracted Identifiers (Normalized before HMAC hashing):
-            </span>
-            {optedIn && (
-              <button
-                onClick={() => checkStatus(identifiers)}
-                className="text-[11px] text-teal-400 hover:text-teal-300 flex items-center gap-1 transition"
-                title="Refresh Status"
-              >
-                <RefreshCw className="w-3 h-3" />
-                <span>Refresh Status</span>
-              </button>
-            )}
-          </div>
+        <button
+          type="button"
+          onClick={() => setShowExplainer(true)}
+          className="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1.5 transition pt-1"
+        >
+          <HelpCircle className="w-3.5 h-3.5" />
+          <span>How Sakhi Circle Works / یہ کیسے کام کرتا ہے؟</span>
+        </button>
+      </div>
 
-          {identifiers.length === 0 ? (
-            <p className="text-xs text-slate-500 italic p-3 bg-slate-950/60 rounded-xl border border-slate-800/80">
-              No phone numbers or social handles detected in this case yet. Add evidence or run the AI review.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {identifiers.map((item, idx) => (
+      {/* ── 4. MATCH RESULT CARD FOR EACH IDENTIFIER ─────────────────────── */}
+      <div className="space-y-3">
+        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between px-1">
+          <div className="flex items-center gap-1.5">
+            <span className="font-urdu text-sm text-slate-300 normal-case">اس کیس کے نمبر اور ہینڈل</span>
+            <span>/ Case Identifiers</span>
+          </div>
+          {optedIn && (
+            <button
+              onClick={() => checkStatus(identifiers)}
+              disabled={loading}
+              className="text-xs text-teal-400 hover:text-teal-300 font-semibold"
+            >
+              Refresh
+            </button>
+          )}
+        </h3>
+
+        {identifiers.length === 0 ? (
+          <div className="p-6 bg-slate-900 border border-slate-800 rounded-2xl text-center text-xs text-slate-500 space-y-1">
+            <p className="font-urdu text-sm text-slate-400">کوئی فون نمبر یا ہینڈل نہیں ملا۔</p>
+            <p>No phone numbers or handles found in this case.</p>
+          </div>
+        ) : (
+          identifiers.map((item, idx) => {
+            const hasPatternMatch = Boolean(item.status?.match && (item.status.count || 0) >= 3);
+            const reporterCount = item.status?.count || 0;
+
+            // Scenario A: Case is NOT opted in
+            if (!optedIn) {
+              return (
                 <div
                   key={idx}
-                  className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                  className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 space-y-3 shadow-sm"
                 >
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={item.selected}
-                      disabled={optedIn}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setIdentifiers((prev) =>
-                          prev.map((i, iIdx) => (iIdx === idx ? { ...i, selected: checked } : i))
-                        );
-                      }}
-                      className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-teal-600 focus:ring-teal-500 focus:ring-offset-slate-900"
-                    />
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-bold text-white font-mono">{item.raw}</span>
+                    <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase bg-slate-800 text-slate-400 border border-slate-700">
+                      {item.type}
+                    </span>
+                  </div>
 
+                  <div className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-xl flex items-center gap-3">
+                    <Lock className="w-5 h-5 text-slate-500 shrink-0" />
                     <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-white">{item.raw}</span>
-                        <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                          {item.type}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-                        Normalized: <span className="text-teal-300">{item.normalized}</span>
+                      <p className="font-urdu text-sm text-slate-300 leading-snug">
+                        میچ چیک کرنے کے لیے شیئر کریں
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        Opt in to check if other reports match this identifier
                       </p>
                     </div>
                   </div>
 
-                  {/* Status Indicator */}
-                  {optedIn && item.status && (
-                    <div className="sm:text-right shrink-0">
-                      {item.status.match ? (
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-950/80 border border-red-700/80 text-red-200 font-medium">
-                          <Users className="w-3.5 h-3.5 text-red-400" />
-                          <span>{item.status.message}</span>
-                        </div>
-                      ) : (
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-400">
-                          <Hash className="w-3.5 h-3.5 text-slate-500" />
-                          <span>{item.status.message}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmOptInModal(true)}
+                    className="w-full py-3.5 bg-teal-600 hover:bg-teal-500 text-white font-semibold rounded-xl text-sm transition min-h-[56px] flex items-center justify-center gap-2 shadow-md"
+                  >
+                    <span className="font-urdu text-base leading-none">شیئر کریں</span>
+                    <span>/ Opt In</span>
+                  </button>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              );
+            }
 
-        {/* Pattern Threshold Match Banner (when count >= 3) */}
-        {hasPatternMatch && (
-          <div className="p-4 bg-red-950/40 border border-red-700/80 rounded-xl space-y-2 text-xs">
-            <div className="flex items-center gap-2 text-red-300 font-bold">
-              <ShieldAlert className="w-4 h-4 text-red-400" />
-              <span>Independent Serial Pattern Identified</span>
-            </div>
-            <p className="text-red-200/90 leading-relaxed">
-              At least one identifier in this case matches 3 or more independent reporting devices in Sakhi Circle.
-              This confirms that other women have reported the same phone number or account.
-            </p>
-            <p className="text-slate-400 text-[11px]">
-              Note: To protect all parties, Sakhi Circle never displays the names, dates, or messages of any other reporter.
-            </p>
-          </div>
-        )}
-
-        {/* Actions Bar */}
-        {optedIn && (
-          <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
-            <button
-              onClick={handleWithdraw}
-              disabled={loading}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-red-950/80 text-slate-300 hover:text-red-300 border border-slate-700 hover:border-red-800 rounded-xl text-xs font-medium flex items-center gap-1.5 transition"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-red-400" />
-              <span>Withdraw from Circle</span>
-            </button>
-
-            <span className="text-[11px] text-slate-500 font-mono">
-              Encrypted Device Pseudonym:{' '}
-              <code className="text-slate-400">
-                {reporterPseudonym ? `${reporterPseudonym.slice(0, 16)}...` : 'Loading...'}
-              </code>
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Stage Demo Controller Box (Clearly marked prototype tool) */}
-      <div className="p-4 bg-slate-900/60 border border-dashed border-slate-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-        <div>
-          <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            Hackathon Stage Demo Tooling
-          </span>
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            Pre-seed 2 dummy independent reporters sharing fictional demo number{' '}
-            <code className="text-teal-400">+92 300 4819283</code> to trigger the live &ge;3 pattern threshold.
-          </p>
-        </div>
-
-        <button
-          onClick={handleSeedDemo}
-          disabled={demoSeeding}
-          className="px-3 py-1.5 bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-800/80 rounded-xl text-xs font-medium flex items-center gap-1.5 transition shrink-0"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${demoSeeding ? 'animate-spin' : ''}`} />
-          <span>Re-seed Demo Pattern</span>
-        </button>
-      </div>
-
-      {/* Opt-In User Confirmation Modal (Requirement 14 & 2) */}
-      {showConfirmOptInModal && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 text-slate-200 shadow-2xl relative my-8 space-y-4">
-            <button
-              onClick={() => setShowConfirmOptInModal(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
-              aria-label="Close"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-teal-950 border border-teal-500/40 flex items-center justify-center text-teal-400 shrink-0">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-white">
-                  Confirm Anonymous Circle Contribution
-                </h3>
-                <p className="text-xs text-teal-400">Plausible Deniability &amp; Zero Content Exposure</p>
-              </div>
-            </div>
-
-            {/* Mandatory Plain-Language Guarantee */}
-            <div className="p-3.5 bg-teal-950/50 border border-teal-800 rounded-xl text-xs text-teal-200 space-y-1">
-              <p className="font-semibold text-teal-100 flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5 text-teal-400" />
-                Zero-Content Privacy Guarantee
-              </p>
-              <p className="text-teal-300 font-sans leading-relaxed">
-                &ldquo;Only scrambled codes of phone numbers or handles are shared. Your messages, images and name never leave this phone.&rdquo;
-              </p>
-            </div>
-
-            {/* Preview of identifiers being contributed */}
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-slate-300">
-                {selectedCount} Identifier(s) will be contributed for this case:
-              </p>
-              <div className="max-h-36 overflow-y-auto space-y-1.5 p-2.5 bg-slate-950 rounded-xl border border-slate-800 text-xs">
-                {identifiers
-                  .filter((i) => i.selected)
-                  .map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-[11px] font-mono">
-                      <span className="text-slate-300">{item.raw}</span>
-                      <span className="text-teal-400">&rarr; {item.normalized}</span>
+            // Scenario B: Distinct independent reporters >= 3
+            if (hasPatternMatch) {
+              return (
+                <div
+                  key={idx}
+                  className="bg-amber-950/40 border-2 border-amber-600/80 rounded-2xl p-5 space-y-3.5 shadow-lg"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="text-base font-bold text-white font-mono block">{item.raw}</span>
+                      <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase bg-amber-900/60 text-amber-300 border border-amber-700/60 inline-block mt-1">
+                        {item.type}
+                      </span>
                     </div>
-                  ))}
+                    <span className="px-3 py-1 rounded-xl bg-amber-500/20 text-amber-300 text-xs font-bold border border-amber-500/40 shrink-0">
+                      {reporterCount} رپورٹس / {reporterCount} reporters
+                    </span>
+                  </div>
+
+                  <div className="space-y-1 bg-amber-950/60 border border-amber-800/80 rounded-xl p-3.5">
+                    <p className="font-urdu text-base text-amber-100 font-bold leading-snug">
+                      یہ نمبر/ہینڈل دوسری خواتین کی رپورٹس میں بھی آیا ہے
+                    </p>
+                    <p className="text-xs text-amber-200/90 leading-relaxed font-semibold">
+                      Other independent reports match this identifier
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1 text-teal-300">
+                    <CheckCircle2 className="w-5 h-5 text-teal-400 shrink-0" />
+                    <div>
+                      <span className="font-urdu text-base font-bold block leading-snug">آپ اکیلی نہیں ہیں</span>
+                      <span className="text-xs text-teal-300/80">You are not alone</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            // Scenario C: Fewer than 3 reports (No match yet)
+            return (
+              <div
+                key={idx}
+                className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3 shadow-sm"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-bold text-white font-mono">{item.raw}</span>
+                  <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase bg-slate-800 text-slate-400 border border-slate-700">
+                    {item.type}
+                  </span>
+                </div>
+
+                <div className="p-3.5 bg-slate-950/70 border border-slate-800/90 rounded-xl space-y-1">
+                  <p className="font-urdu text-sm text-slate-200 leading-snug">
+                    ابھی کوئی میچ نہیں ملا
+                  </p>
+                  <p className="text-xs text-slate-400 font-medium">
+                    No match yet
+                  </p>
+                  <p className="text-[11px] text-slate-500 pt-1 leading-relaxed">
+                    پیٹرن کی تصدیق کے لیے 3 یا زیادہ آزاد رپورٹس درکار ہوتی ہیں۔
+                    <br />
+                    At least 3 independent reports are needed to confirm a pattern.
+                  </p>
+                </div>
               </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* ── 5. "واپس لیں / WITHDRAW" BUTTON ─────────────────────────────── */}
+      {optedIn && (
+        <div className="pt-2">
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => setShowConfirmWithdrawModal(true)}
+            className="w-full py-4 bg-slate-900 hover:bg-red-950/40 text-red-300 border border-red-900/60 rounded-2xl text-sm font-semibold transition min-h-[56px] flex items-center justify-center gap-2"
+          >
+            <span className="font-urdu text-base leading-none">واپس لیں</span>
+            <span>/ Withdraw from Circle</span>
+          </button>
+        </div>
+      )}
+
+      {/* Confirmation Modal for Opt-In */}
+      {showConfirmOptInModal && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 text-slate-200 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-urdu text-xl text-white leading-snug">خفیہ شیئرنگ کی تصدیق</h4>
+                <p className="text-xs text-teal-400">Confirm Anonymous Contribution</p>
+              </div>
+              <button
+                onClick={() => setShowConfirmOptInModal(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl text-[11px] text-slate-400 leading-relaxed flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-              <p>
-                The server computes an irreversible HMAC-SHA256 hash using a private server secret. Raw values are immediately destroyed and never logged.
+            <div className="p-3.5 bg-teal-950/50 border border-teal-800 rounded-xl space-y-1 text-xs">
+              <p className="font-urdu text-sm text-teal-100 leading-snug">
+                صرف نمبر یا ہینڈل کا خفیہ کوڈ شیئر ہوتا ہے۔ آپ کے پیغامات، تصاویر اور نام فون سے باہر کبھی نہیں جاتے۔
+              </p>
+              <p className="text-teal-300/80 text-[11px]">
+                Only scrambled codes of phone numbers or handles are shared. Your messages, images and name never leave this phone.
               </p>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+            <p className="text-xs text-slate-400 leading-relaxed">
+              کیا آپ اس کیس کے نمبرز کو سخی سرکل میں شامل کرنا چاہتے ہیں؟
+              <br />
+              Do you want to include this case's identifiers in Sakhi Circle?
+            </p>
+
+            <div className="flex gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setShowConfirmOptInModal(false)}
-                className="px-4 py-2 text-xs rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 transition"
+                className="flex-1 py-3 text-sm rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 min-h-[52px]"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                disabled={loading || selectedCount === 0}
+                disabled={loading}
                 onClick={handleConfirmAndContribute}
-                className="px-4 py-2 text-xs font-semibold rounded-xl bg-teal-600 hover:bg-teal-500 text-white shadow-md transition flex items-center gap-1.5"
+                className="flex-1 py-3 text-sm font-semibold rounded-xl bg-teal-600 hover:bg-teal-500 text-white shadow-md min-h-[52px]"
               >
-                <ShieldCheck className="w-4 h-4" />
-                <span>Confirm &amp; Anonymously Contribute</span>
+                <span className="font-urdu block leading-snug">ہاں، شیئر کریں</span>
+                <span className="text-[10px] opacity-80">Yes, Opt In</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal for Withdraw */}
+      {showConfirmWithdrawModal && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-red-800/80 rounded-2xl max-w-md w-full p-6 text-slate-200 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-urdu text-xl text-red-300 leading-snug">واپس لینے کی تصدیق</h4>
+                <p className="text-xs text-slate-400">Confirm Withdrawal</p>
+              </div>
+              <button
+                onClick={() => setShowConfirmWithdrawModal(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-sm text-slate-200 leading-relaxed">
+              <span className="font-urdu block text-base leading-snug mb-1">
+                کیا آپ واقعی اس کیس کے تمام کوڈز سرور سے واپس لینا چاہتے ہیں؟
+              </span>
+              Do you want to withdraw all anonymous records for this case?
+            </p>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowConfirmWithdrawModal(false)}
+                className="flex-1 py-3 text-sm rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 min-h-[52px]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={handleExecuteWithdraw}
+                className="flex-1 py-3 text-sm font-semibold rounded-xl bg-red-600 hover:bg-red-500 text-white shadow-md min-h-[52px]"
+              >
+                <span className="font-urdu block leading-snug">ہاں، واپس لیں</span>
+                <span className="text-[10px] opacity-80">Yes, Withdraw</span>
               </button>
             </div>
           </div>

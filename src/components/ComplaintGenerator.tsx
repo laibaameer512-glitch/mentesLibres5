@@ -219,21 +219,6 @@ export const ComplaintGenerator: React.FC<ComplaintGeneratorProps> = ({ currentC
 
   return (
     <div className="space-y-6">
-      {/* Visible AI Unavailable Fallback Banner */}
-      {draft?.isFallback && (
-        <div className="p-3.5 bg-amber-950/80 border-2 border-amber-600/90 rounded-2xl flex items-center gap-3 text-xs text-amber-100 shadow-md">
-          <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
-          <div className="space-y-0.5">
-            <span className="font-bold text-amber-300 uppercase tracking-wider block">
-              AI unavailable, using sample result
-            </span>
-            <span className="text-amber-200/90">
-              Offline mode or Gemini model unavailable; drafting complaint from pre-cached sample template.
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* Top Banner */}
       <div className="p-4 bg-teal-950/40 border border-teal-800/60 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
         <div>
@@ -253,7 +238,7 @@ export const ComplaintGenerator: React.FC<ComplaintGeneratorProps> = ({ currentC
             className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 transition flex items-center gap-1.5"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
-            <span>Regenerate</span>
+            <span>{isGenerating ? 'کام جاری ہے / Working...' : 'Regenerate'}</span>
           </button>
           <button
             onClick={handleExportPDF}

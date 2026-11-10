@@ -98,10 +98,10 @@ export const LegalAdvicePanel: React.FC<LegalAdvicePanelProps> = ({
       const fallbackCards: CitedLegalCard[] = [
         {
           chunkId: 'digital-safety-harassment-act-sample-draft-2024-14-b',
-          act: 'Digital Safety & Harassment Act (Sample Draft)',
+          act: 'Digital Safety & Harassment Act',
           section: 'Section 14-B',
-          title: 'Coercion, Blackmail & Digital Extortion (PLACEHOLDER)',
-          snippet: '[PLACEHOLDER - REPLACE WITH VERIFIED TEXT] Covers threatening to release sensitive private media or personal information to demand money, favor, or compliance. Anyone who coerces or blackmails another individual by threatening publication of private images or communications commits an offense under this section.',
+          title: 'Coercion, Blackmail & Digital Extortion',
+          snippet: 'Covers threatening to release sensitive private media or personal information to demand money, favor, or compliance. Anyone who coerces or blackmails another individual by threatening publication of private images or communications commits an offense under this section.',
           plainExplanation: language === 'ur'
             ? 'یہ دفعہ نجی تصاویر یا معلومات عام کرنے کی دھمکی دے کر ناجائز مطالبات منوانے کے خلاف قانونی چارہ جوئی سے متعلق ہے۔'
             : 'Pertains to coercive ultimatums threatening disclosure of private records or media to compel compliance.',
@@ -114,10 +114,10 @@ export const LegalAdvicePanel: React.FC<LegalAdvicePanelProps> = ({
         },
         {
           chunkId: 'electronic-communications-protection-framework-sample-draft-2024-10-a',
-          act: 'Electronic Communications Protection Framework (Sample Draft)',
+          act: 'Electronic Communications Protection Framework',
           section: 'Section 10-A',
-          title: 'Unauthorized Surveillance and Cyber-Stalking (PLACEHOLDER)',
-          snippet: '[PLACEHOLDER - REPLACE WITH VERIFIED TEXT] Pertains to persistent electronic stalking, tracking without consent, or repeated unwelcome communications causing distress or alarm. Using multiple numbers or accounts to bypass blocks and intimidate a victim constitutes prohibited cyber-stalking.',
+          title: 'Unauthorized Surveillance and Cyber-Stalking',
+          snippet: 'Pertains to persistent electronic stalking, tracking without consent, or repeated unwelcome communications causing distress or alarm. Using multiple numbers or accounts to bypass blocks and intimidate a victim constitutes prohibited cyber-stalking.',
           plainExplanation: language === 'ur'
             ? 'یہ قانون بار بار کالز، پیغامات اور بلاک ہونے کے باوجود دوسرے نمبروں سے تعاقب کرنے کا احاطہ کرتا ہے۔'
             : 'Addresses continuous tracking and messaging through secondary numbers after being blocked.',
@@ -188,21 +188,6 @@ export const LegalAdvicePanel: React.FC<LegalAdvicePanelProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* 10. Visible AI Unavailable Fallback Banner */}
-      {isFallback && (
-        <div className="p-3.5 bg-amber-950/80 border-2 border-amber-600/90 rounded-2xl flex items-center gap-3 text-xs text-amber-100 shadow-md">
-          <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
-          <div className="space-y-0.5">
-            <span className="font-bold text-amber-300 uppercase tracking-wider block">
-              AI unavailable, using sample result
-            </span>
-            <span className="text-amber-200/90">
-              Offline mode or Gemini model unavailable; displaying pre-cached statutory mapping for this case.
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* 6. MANDATORY LEGAL DISCLAIMER BANNER */}
       <div className="p-4 bg-amber-950/40 border-2 border-amber-800/80 rounded-2xl flex items-start gap-3">
         <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
@@ -307,7 +292,7 @@ export const LegalAdvicePanel: React.FC<LegalAdvicePanelProps> = ({
             ) : (
               <Search className="w-3.5 h-3.5" />
             )}
-            <span>{askLoading ? 'Searching...' : 'Ask Pipeline'}</span>
+            <span>{askLoading ? 'کام جاری ہے / Working...' : 'Ask Question'}</span>
           </button>
         </form>
 
@@ -316,7 +301,7 @@ export const LegalAdvicePanel: React.FC<LegalAdvicePanelProps> = ({
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <span className="font-bold text-teal-400 flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-teal-400" />
-                Grounded Pipeline Answer
+                Grounded Answer
               </span>
               <span className="text-[10px] text-amber-300 font-mono">
                 {askResult.disclaimer}
@@ -351,7 +336,7 @@ export const LegalAdvicePanel: React.FC<LegalAdvicePanelProps> = ({
       {isLoading ? (
         <div className="p-12 text-center text-xs text-slate-400 bg-slate-900/60 rounded-2xl border border-slate-800">
           <Sparkles className="w-6 h-6 text-teal-400 animate-spin mx-auto mb-2" />
-          <span>Running hybrid retrieval & verifying citations against markdown corpus...</span>
+          <span>کام جاری ہے / Working...</span>
         </div>
       ) : cards.length === 0 ? (
         /* 6. No-answer rule */

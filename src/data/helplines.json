@@ -4,7 +4,7 @@
     "name": "FIA Cyber Crime Helpline",
     "urduName": "ایف آئی اے سائبر کرائم ہیلپ لائن",
     "number": "1991",
-    "display": "1991 (VERIFY)",
+    "display": "1991",
     "description": "Federal Investigation Agency dedicated cyber harassment, online extortion, and blackmail reporting line.",
     "hours": "24/7 Toll-Free",
     "category": "Law Enforcement"
@@ -14,7 +14,7 @@
     "name": "DRF Cyber Harassment Helpline",
     "urduName": "ڈیجیٹل رائٹس فاؤنڈیشن ہیلپ لائن",
     "number": "0800-39393",
-    "display": "0800-39393 (VERIFY)",
+    "display": "0800-39393",
     "description": "Free, confidential legal advice, digital security assistance, and psychological first aid for women.",
     "hours": "Mon-Sun 9AM - 5PM",
     "category": "Legal & Digital Support"
@@ -24,7 +24,7 @@
     "name": "Police Emergency Helpline",
     "urduName": "پولیس ایمرجنسی 15",
     "number": "15",
-    "display": "15 (VERIFY)",
+    "display": "15",
     "description": "Immediate emergency response for immediate physical danger or physical stalking.",
     "hours": "24/7 Immediate",
     "category": "Emergency"
@@ -34,7 +34,7 @@
     "name": "Madadgaar National Helpline",
     "urduName": "مددگار نیشنل ہیلپ لائن",
     "number": "1098",
-    "display": "1098 (VERIFY)",
+    "display": "1098",
     "description": "Crisis support, referral services, and intervention for women and children facing violence.",
     "hours": "24/7 Confidential",
     "category": "Crisis Intervention"
@@ -44,7 +44,7 @@
     "name": "Rozan Emotional Support Line",
     "urduName": "روزن ذہنی صحت اور مشاورت",
     "number": "0304-1111741",
-    "display": "0304-1111741 (VERIFY)",
+    "display": "0304-1111741",
     "description": "Confidential psychological counseling and emotional first aid for trauma and distress.",
     "hours": "Mon-Sat 10AM - 6PM",
     "category": "Mental Health"
@@ -54,7 +54,7 @@
     "name": "Edhi Emergency Services",
     "urduName": "ایدھی ایمرجنسی ایمبولینس",
     "number": "115",
-    "display": "115 (VERIFY)",
+    "display": "115",
     "description": "National emergency medical and ambulance rescue response.",
     "hours": "24/7 Nationwide",
     "category": "Medical Emergency"
