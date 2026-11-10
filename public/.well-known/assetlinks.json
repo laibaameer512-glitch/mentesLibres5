@@ -1,2 +1,14 @@
-[]
-
+[
+    {
+        "relation": [
+            "delegate_permission/common.handle_all_urls"
+        ],
+        "target": {
+            "namespace": "android_app",
+            "package_name": "com.onrender.menteslibres5.twa",
+            "sha256_cert_fingerprints": [
+                "27:2C:1A:FE:2C:01:5C:53:7B:45:8A:36:23:35:C6:31:B8:86:DB:11:85:2E:4E:6C:5C:62:87:D2:49:B3:E1:D2"
+            ]
+        }
+    }
+]
