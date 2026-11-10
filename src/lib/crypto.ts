@@ -175,6 +175,31 @@ export interface EncryptedPayload {
 }
 
 /**
+ * Safely converts a Uint8Array to a Base64 string in chunks to prevent stack overflow
+ */
+export function bytesToBase64(bytes: Uint8Array): string {
+  const CHUNK_SIZE = 0x8000; // 32KB chunks prevent call stack limit exhaustion
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    const chunk = bytes.subarray(i, i + CHUNK_SIZE);
+    binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+  }
+  return btoa(binary);
+}
+
+/**
+ * Safely converts a Base64 string to a Uint8Array
+ */
+export function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/**
  * Encrypts an arbitrary object or string with AES-GCM using the active session key
  */
 export async function encryptData(key: CryptoKey, data: any): Promise<EncryptedPayload> {
@@ -192,11 +217,9 @@ export async function encryptData(key: CryptoKey, data: any): Promise<EncryptedP
     dataBuffer
   );
 
-  // Convert to Base64 strings for compact storage
-  const ciphertextBase64 = btoa(
-    String.fromCharCode(...new Uint8Array(encryptedBuffer))
-  );
-  const ivBase64 = btoa(String.fromCharCode(...iv));
+  // Convert to Base64 strings for compact storage safely without stack overflow
+  const ciphertextBase64 = bytesToBase64(new Uint8Array(encryptedBuffer));
+  const ivBase64 = bytesToBase64(iv);
 
   return {
     ciphertext: ciphertextBase64,
@@ -208,8 +231,8 @@ export async function encryptData(key: CryptoKey, data: any): Promise<EncryptedP
  * Decrypts an encrypted payload with the active session key
  */
 export async function decryptData<T = any>(key: CryptoKey, payload: EncryptedPayload): Promise<T> {
-  const ivBytes = Uint8Array.from(atob(payload.iv), (c) => c.charCodeAt(0));
-  const cipherBytes = Uint8Array.from(atob(payload.ciphertext), (c) => c.charCodeAt(0));
+  const ivBytes = base64ToBytes(payload.iv);
+  const cipherBytes = base64ToBytes(payload.ciphertext);
 
   const decryptedBuffer = await window.crypto.subtle.decrypt(
     {
@@ -217,7 +240,7 @@ export async function decryptData<T = any>(key: CryptoKey, payload: EncryptedPay
       iv: ivBytes as BufferSource,
     },
     key,
-    cipherBytes
+    cipherBytes as BufferSource
   );
 
   const dec = new TextDecoder();

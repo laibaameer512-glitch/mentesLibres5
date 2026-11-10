@@ -252,10 +252,50 @@ export const Calculator: React.FC<CalculatorProps> = ({
       }
 
       const realKey = await deriveAesKey(demoPin, auth.real.saltHex);
-      const demoCase = createDemoCase();
-      await saveRealCase(realKey, demoCase);
+      const fullDemoCase = createDemoCase();
+      const itemsToSeed = [...fullDemoCase.evidenceItems];
 
-      setDemoToast('Demo Case with 15 screenshots & 2 audio transcripts loaded!');
+      // Base case with empty evidence items initially
+      const baseCase: VaultCase = {
+        ...fullDemoCase,
+        evidenceItems: [],
+        updatedAt: new Date().toISOString(),
+      };
+
+      await saveRealCase(realKey, baseCase);
+
+      let successCount = 0;
+      const failedItems: Array<{ id: string; label: string; error: string }> = [];
+
+      // Save items one by one inside try/catch to ensure robust seeding
+      for (const item of itemsToSeed) {
+        try {
+          baseCase.evidenceItems.push(item);
+          baseCase.updatedAt = new Date().toISOString();
+          await saveRealCase(realKey, baseCase);
+          successCount++;
+        } catch (itemErr: any) {
+          baseCase.evidenceItems.pop();
+          const cleanMsg = String(itemErr?.message || itemErr || 'Failed to save item');
+          console.warn(`Failed to seed item ${item.id}:`, cleanMsg);
+          failedItems.push({
+            id: item.id,
+            label: item.personLabel || item.id,
+            error: cleanMsg,
+          });
+        }
+      }
+
+      if (failedItems.length === 0) {
+        setDemoToast(`Demo Case with 15 screenshots & 2 audio transcripts loaded (${successCount} items saved)!`);
+      } else {
+        const failureDetails = failedItems
+          .map((f) => `${f.label} (${f.id}): ${f.error}`)
+          .join('\n');
+        alert(
+          `Demo data seeding completed:\n• ${successCount} items succeeded\n• ${failedItems.length} items failed:\n${failureDetails}`
+        );
+      }
       setShowDemoModal(false);
       setTimeout(() => setDemoToast(null), 4000);
     } catch (err: any) {
