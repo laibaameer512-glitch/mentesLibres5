@@ -10,12 +10,20 @@ import {
   explainSections,
   writeSearchQueries,
   askLegalQuestion,
-  getDemoCaseCache,
   getDemoCasesCache,
   CachedDemoCase,
 } from '../services/legal.ts';
 import { generateComplaintDraft } from '../services/complaint.ts';
-import { ai, hasApiKey } from '../services/geminiClient.ts';
+import {
+  ai,
+  hasApiKey,
+  getGeminiModels,
+  getGeminiApiKeys,
+  getActiveModel,
+  getGenAIClient,
+  getTextTimeoutMs,
+  withTimeout,
+} from '../services/geminiClient.ts';
 import {
   contributeIdentifiers,
   getStatusForReporter,
@@ -24,6 +32,9 @@ import {
   getCounselorAuditLogs,
   seedDemoReporters,
   checkIpContributionRateLimit,
+  getCounselorDuplicates,
+  saveDuplicateDecision,
+  undoDuplicateDecision,
 } from '../services/circle.ts';
 import fs from 'fs';
 import path from 'path';
@@ -108,114 +119,102 @@ function requireCounselorAuth(req: Request, res: Response, next: () => void) {
 
 export const apiRouter = Router();
 
-// Health check endpoint testing one tiny call per model
+// Health check endpoint testing one ping call per model in GEMINI_MODELS
 apiRouter.get('/health', async (_req: Request, res: Response) => {
-  const results: Array<{
-    model: string;
-    task: string;
-    status: 'pass' | 'fail';
-    latencyMs?: number;
-    responsePreview?: string;
-    error?: string;
-  }> = [];
+  const models = getGeminiModels();
+  const keys = getGeminiApiKeys();
+  const activeModel = getActiveModel();
 
-  if (!hasApiKey) {
+  if (!hasApiKey || keys.length === 0) {
     return res.json({
       overall: 'offline_or_missing_key',
       hasApiKey: false,
-      models: [
-        {
-          model: 'gemini-3.8-flash',
-          task: 'Text / Vision / Extraction / Classification',
-          status: 'fail',
-          error: 'GEMINI_API_KEY environment variable is not set.',
-        },
-        {
-          model: 'gemini-3.5-transcribe',
-          task: 'Audio Transcription',
-          status: 'fail',
-          error: 'GEMINI_API_KEY environment variable is not set.',
-        },
-      ],
+      activeModel,
+      models: models.map((m) => ({
+        model: m,
+        status: 'fail' as const,
+        errorType: 'other' as const,
+        error: 'No Gemini API keys configured in environment.',
+      })),
       timestamp: new Date().toISOString(),
     });
   }
 
-function withTimeout<T>(promise: Promise<T>, ms: number, msg: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(msg)), ms)),
-  ]);
-}
+  const timeoutMs = getTextTimeoutMs();
 
-  // Run model checks concurrently with 9-second timeout safeguard
-  const [flashResult, audioResult] = await Promise.all([
-    (async () => {
+  const results = await Promise.all(
+    models.map(async (modelName) => {
+      const t0 = Date.now();
       try {
-        const t0 = Date.now();
-        const flashRes = await withTimeout(
-          ai.models.generateContent({
-            model: 'gemini-3.8-flash',
+        const client = getGenAIClient(keys[0]);
+        const res = await withTimeout(
+          client.models.generateContent({
+            model: modelName,
             contents: 'Ping health check. Respond strictly with "PONG".',
           }),
-          15000,
-          'gemini-3.8-flash text call timed out'
+          timeoutMs,
+          `Health check ping to ${modelName} timed out after ${timeoutMs}ms`
         );
         const latency = Date.now() - t0;
-        const text = flashRes.text?.trim() || '';
+        const text = res.text?.trim() || '';
         return {
-          model: 'gemini-3.8-flash',
-          task: 'Text / Vision / Extraction / Classification',
+          model: modelName,
           status: text.length > 0 ? ('pass' as const) : ('fail' as const),
           latencyMs: latency,
           responsePreview: text.slice(0, 50),
         };
       } catch (err: any) {
-        return {
-          model: 'gemini-3.8-flash',
-          task: 'Text / Vision / Extraction / Classification',
-          status: 'fail' as const,
-          error: err.message || 'Call failed',
-        };
-      }
-    })(),
-    (async () => {
-      try {
-        const t0 = Date.now();
-        const trRes = await withTimeout(
-          ai.models.generateContent({
-            model: 'gemini-3.8-flash',
-            contents: 'Voice transcribe health check. Respond strictly with "AUDIO_READY".',
-          }),
-          15000,
-          'gemini-3.8-flash audio pipeline call timed out'
-        );
         const latency = Date.now() - t0;
-        const text = trRes.text?.trim() || '';
-        return {
-          model: 'gemini-3.8-flash',
-          task: 'Audio Understanding & Multimodal Transcription',
-          status: text.length > 0 ? ('pass' as const) : ('fail' as const),
-          latencyMs: latency,
-          responsePreview: text.slice(0, 50),
-        };
-      } catch (err: any) {
-        return {
-          model: 'gemini-3.8-flash',
-          task: 'Audio Understanding & Multimodal Transcription',
-          status: 'fail' as const,
-          error: err.message || 'Call failed',
-        };
-      }
-    })(),
-  ]);
+        let errorType: 'timeout' | 'not found' | 'quota' | 'other' = 'other';
+        const msg = String(err?.message || '').toLowerCase();
+        const status = err?.status;
 
-  results.push(flashResult, audioResult);
+        if (
+          err?.isTimeout ||
+          err?.name === 'TimeoutError' ||
+          msg.includes('timeout') ||
+          msg.includes('timed out')
+        ) {
+          errorType = 'timeout';
+        } else if (
+          status === 404 ||
+          msg.includes('not found') ||
+          msg.includes('is not found') ||
+          msg.includes('404')
+        ) {
+          errorType = 'not found';
+        } else if (
+          status === 429 ||
+          msg.includes('quota') ||
+          msg.includes('resource has been exhausted') ||
+          msg.includes('429')
+        ) {
+          errorType = 'quota';
+        }
+
+        // Sanitize error message to ensure no key material can ever leak
+        let safeError = String(err?.message || 'Call failed');
+        safeError = safeError
+          .replace(/AIza[A-Za-z0-9_-]{30,}/g, 'REDACTED')
+          .replace(/key[=:]["']?[A-Za-z0-9_-]{20,}/gi, 'key=REDACTED');
+
+        return {
+          model: modelName,
+          status: 'fail' as const,
+          latencyMs: latency,
+          errorType,
+          error: safeError.slice(0, 180),
+        };
+      }
+    })
+  );
 
   const allPassed = results.every((r) => r.status === 'pass');
+  const anyPassed = results.some((r) => r.status === 'pass');
   return res.json({
-    overall: allPassed ? 'healthy' : 'degraded',
+    overall: allPassed ? 'healthy' : anyPassed ? 'degraded' : 'offline_or_missing_key',
     hasApiKey: true,
+    activeModel,
     models: results,
     timestamp: new Date().toISOString(),
   });
@@ -317,37 +316,6 @@ const handleLegalRetrieval = async (req: Request, res: Response) => {
       caseId,
       classificationLabels = [],
     } = req.body || {};
-
-    const isDemoCase =
-      caseId === 'case-demo-104' ||
-      (typeof caseFacts === 'string' &&
-        (caseFacts.includes('Workplace & Academic Extortion') ||
-          caseFacts.includes('24 ghantay hain tumhare paas')));
-
-    // Check if offline or demo case cache should be returned
-    if (isDemoCase && (!hasApiKey || req.query.offline === 'true')) {
-      const demoCache = getDemoCaseCache();
-      if (demoCache) {
-        return res.json({
-          sections: demoCache.citedCards.map((c) => ({
-            id: c.chunkId || '',
-            act: c.act,
-            section: c.section,
-            title: c.title,
-            snippet: c.snippet,
-            sourceUrl: c.sourceUrl,
-            jurisdiction: c.jurisdiction,
-            lastVerified: c.lastVerified,
-            verifiedBy: c.verifiedBy,
-            isPlaceholder: c.isPlaceholder,
-          })),
-          citedCards: demoCache.citedCards,
-          isFallback: true,
-          isDemoCached: true,
-          disclaimer: DISCLAIMER,
-        });
-      }
-    }
 
     // Check for demoCasesCache.json hit before entering live pipeline
     const demoCasesCache = getDemoCasesCache();
@@ -458,10 +426,13 @@ const handleLegalRetrieval = async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.warn('Legal Route error, attempting demo cache or fallback:', err);
-    const demoCache = getDemoCaseCache();
-    if (demoCache) {
+    const demoCache = getDemoCasesCache();
+    const fallbackCase =
+      (req.body?.caseId && demoCache?.cases[req.body.caseId]) ||
+      demoCache?.cases['case-demo-104'];
+    if (fallbackCase && !fallbackCase.isPlaceholder) {
       return res.json({
-        sections: demoCache.citedCards.map((c) => ({
+        sections: fallbackCase.citedCards.map((c: any) => ({
           id: c.chunkId || '',
           act: c.act,
           section: c.section,
@@ -473,10 +444,10 @@ const handleLegalRetrieval = async (req: Request, res: Response) => {
           verifiedBy: c.verifiedBy,
           isPlaceholder: c.isPlaceholder,
         })),
-        citedCards: demoCache.citedCards,
+        citedCards: fallbackCase.citedCards,
         isFallback: true,
         isDemoCached: true,
-        disclaimer: DISCLAIMER,
+        disclaimer: fallbackCase.disclaimer || DISCLAIMER,
       });
     }
     return res.status(500).json({ error: err.message || 'Legal guidance retrieval failed' });
@@ -535,15 +506,72 @@ apiRouter.get('/helplines', (_req: Request, res: Response) => {
   }
 });
 
-// 10. Silent Alert trigger (Stub for duress decoy PIN)
-apiRouter.post('/silent-alert', (req: Request, res: Response) => {
-  const { timestamp, clientHint, location } = req.body || {};
+// 10. Duress Silent Alert (Telegram Channel or Simulated)
+const handleDuressAlert = async (req: Request, res: Response) => {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  const chatId = process.env.TELEGRAM_CHAT_ID?.trim();
+
+  // If real Telegram credentials are configured, dispatch neutral notification
+  if (botToken && chatId) {
+    try {
+      const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
+      const response = await fetch(telegramUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          // Fixed neutral message; never includes case content, names or location
+          text: 'Check-in alert from your contact',
+        }),
+      });
+
+      if (response.ok) {
+        console.warn(`[DURESS ALERT] Real alert dispatched via Telegram at ${new Date().toISOString()}`);
+        return res.json({
+          status: 'dispatched',
+          channel: 'telegram',
+          message: 'Alert dispatched via Telegram.',
+        });
+      } else {
+        console.error(`[DURESS ALERT] Telegram delivery failed with HTTP status ${response.status}`);
+        return res.json({
+          status: 'simulated',
+          channel: 'none',
+          message: 'Simulated alert (no channel configured)',
+        });
+      }
+    } catch {
+      console.error('[DURESS ALERT] Network error attempting Telegram dispatch.');
+      return res.json({
+        status: 'simulated',
+        channel: 'none',
+        message: 'Simulated alert (no channel configured)',
+      });
+    }
+  }
+
+  // Simulated alert when no real channel is configured
   console.warn(
-    `[SECURITY SILENT ALERT STUB] Decoy duress PIN entered at ${new Date().toISOString()}. Client info:`,
-    { timestamp, clientHint, location }
+    `[DURESS ALERT] Decoy PIN triggered under duress (simulated - no channel configured) at ${new Date().toISOString()}`
   );
-  // TODO: Wire emergency SMS / automated check-in beacon for verified trusted contacts in future release
-  return res.json({ status: 'logged_silently', acknowledged: true });
+  return res.json({
+    status: 'simulated',
+    channel: 'none',
+    message: 'Simulated alert (no channel configured)',
+  });
+};
+
+apiRouter.post('/silent-alert', handleDuressAlert);
+apiRouter.post('/duress/alert', handleDuressAlert);
+apiRouter.get('/duress/status', (_req: Request, res: Response) => {
+  const hasTelegram = Boolean(
+    process.env.TELEGRAM_BOT_TOKEN?.trim() && process.env.TELEGRAM_CHAT_ID?.trim()
+  );
+  return res.json({
+    configured: hasTelegram,
+    channel: hasTelegram ? 'telegram' : 'none',
+    status: hasTelegram ? 'ready' : 'simulated',
+  });
 });
 
 // ==========================================
@@ -723,6 +751,45 @@ apiRouter.get('/circle/counselor/audit', requireCounselorAuth, (_req: Request, r
   } catch (err: any) {
     console.error('Counselor audit logs error:', err);
     return res.status(500).json({ error: err.message || 'Failed to fetch audit logs' });
+  }
+});
+
+// Counselor Duplicates List (Verified by requireCounselorAuth; Mystery Card Duplicate Detector)
+apiRouter.get('/circle/counselor/duplicates', requireCounselorAuth, (_req: Request, res: Response) => {
+  try {
+    const duplicates = getCounselorDuplicates();
+    return res.json({ duplicates });
+  } catch (err: any) {
+    console.error('Counselor duplicates error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to fetch duplicate pairs' });
+  }
+});
+
+// Counselor Duplicate Decision (merge | keep)
+apiRouter.post('/circle/counselor/duplicates/:pairId/decision', requireCounselorAuth, (req: Request, res: Response) => {
+  try {
+    const { pairId } = req.params;
+    const { decision } = req.body || {};
+    if (decision !== 'merge' && decision !== 'keep') {
+      return res.status(400).json({ error: 'decision must be "merge" or "keep"' });
+    }
+    saveDuplicateDecision(pairId, decision);
+    return res.json({ success: true, pairId, decision });
+  } catch (err: any) {
+    console.error('Counselor duplicate decision error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to record decision' });
+  }
+});
+
+// Counselor Duplicate Decision Undo
+apiRouter.post('/circle/counselor/duplicates/:pairId/undo', requireCounselorAuth, (req: Request, res: Response) => {
+  try {
+    const { pairId } = req.params;
+    undoDuplicateDecision(pairId);
+    return res.json({ success: true, pairId, decision: null });
+  } catch (err: any) {
+    console.error('Counselor duplicate undo error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to undo decision' });
   }
 });
 

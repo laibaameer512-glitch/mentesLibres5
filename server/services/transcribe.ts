@@ -1,4 +1,4 @@
-import { ai, hasApiKey } from './geminiClient.ts';
+import { hasApiKey, withRotation } from './geminiClient.ts';
 
 export interface TranscribeResult {
   transcript: string;
@@ -22,23 +22,28 @@ export async function transcribeAudio(
   try {
     const cleanBase64 = audioBase64.replace(/^data:audio\/[a-zA-Z0-9+.-]+;base64,/, '');
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: [
-        {
-          inlineData: {
-            mimeType: mimeType || 'audio/webm',
-            data: cleanBase64,
-          },
-        },
-        {
-          text: `Transcribe this voice recording accurately. 
+    const response = await withRotation(
+      'transcribe',
+      (pair, client) =>
+        client.models.generateContent({
+          model: pair.model,
+          contents: [
+            {
+              inlineData: {
+                mimeType: mimeType || 'audio/webm',
+                data: cleanBase64,
+              },
+            },
+            {
+              text: `Transcribe this voice recording accurately. 
 The speaker may speak in Urdu, Roman Urdu, or Pakistani English.
 Preserve tone, pauses, verbatim phrases, and explicit coercive demands without censoring.
 If in Urdu, provide Urdu script with English or Roman Urdu translation in brackets where helpful.`,
-        },
-      ],
-    });
+            },
+          ],
+        }),
+      { isAudio: true }
+    );
 
     const transcript = response.text?.trim() || '';
     if (!transcript) {

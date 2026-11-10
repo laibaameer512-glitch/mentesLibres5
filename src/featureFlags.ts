@@ -12,6 +12,8 @@ export interface FeatureFlags {
   voiceRecording: boolean;
   pdfExport: boolean;
   circle: boolean;
+  secureSharePacket: boolean;
+  duplicateDetector: boolean;
 }
 
 export const featureFlags: FeatureFlags = {
@@ -24,4 +26,6 @@ export const featureFlags: FeatureFlags = {
   voiceRecording: true,
   pdfExport: true,
   circle: true, // "Sakhi Circle" anonymous pattern matching module
+  secureSharePacket: false, // Emergency evidence packet feature gated behind flag
+  duplicateDetector: true, // "Duplicate Detector" Mystery Card (counselor & in-case)
 };

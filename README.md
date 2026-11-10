@@ -14,13 +14,14 @@ A disguised, encrypted evidence vault and institutional complaint generator desi
 - **Panic Hide & Auto-Lock**:
   - Tapping the invisible top-left corner or the "Panic Hide" action instantly zeroes keys in memory and returns to the calculator.
   - Rapidly tapping `C` 5 times acts as an emergency reset gesture.
-  - Inactivity auto-lock triggers after **30 seconds** of inactivity or immediately when the browser tab is hidden or minimized (`document.visibilitychange`).
+  - Inactivity auto-lock defaults to **60 seconds** of inactivity (configurable in Settings), or triggers immediately when the browser tab is hidden or minimized (`document.visibilitychange`).
 
 ---
 
 ## 2. Local Encryption & Privacy Architecture
 - **Web Crypto AES-GCM 256-bit**: All case records, screenshots, and audio voice notes are encrypted in IndexedDB (`SakhiVault_Storage`).
-- **PBKDF2 Key Derivation**: Keys are derived from the user's PIN using 100,000 iterations of SHA-256 with cryptographically random salts. Plain PINs are never stored; only salted verifiers.
+- **PBKDF2 Key Derivation**: Keys are derived from the user's PIN using **600,000 iterations** of SHA-256 with cryptographically random salts for both real and decoy PINs. Plain PINs are never stored; only salted verifiers.
+> **IMPORTANT NOTE (Key Derivation Upgrade):** The PBKDF2 iteration count is set to 600,000 rounds of SHA-256. Because changing PBKDF2 parameters changes the derived AES keys, **existing vaults created prior to this upgrade must be recreated** (via "Delete Everything Permanently" in Settings or by clearing storage).
 - **Client-Side Redaction**: Before any AI analysis call to the server, phone numbers (`+92...`, `03...`), Pakistani CNIC patterns (`\d{5}-\d{7}-\d{1}`), email addresses, and custom person names are replaced with tokens (`[PHONE_1]`, `[PERSON_1]`). The unredaction map remains local in browser memory.
 - **Sovereign Wipe**: A 1-tap "Delete Everything" action irreversibly destroys the IndexedDB database and wipes all cryptographic verifiers.
 
@@ -28,8 +29,8 @@ A disguised, encrypted evidence vault and institutional complaint generator desi
 
 ## 3. Server-Side Gemini AI Pipeline (`/server/services`)
 All AI processing runs strictly on the Node/Express backend (`server.ts`):
-- `ocr.ts`: Gemini vision (`gemini-3.8-flash`) extracts text from screenshots with support for English, Roman Urdu, and Urdu script.
-- `transcribe.ts`: Gemini audio understanding (`gemini-3.5-transcribe`) transcribes in-browser voice notes and recorded phone audio.
+- `ocr.ts`: Gemini vision extracts text from screenshots with support for English, Roman Urdu, and Urdu script (dynamically rotated across `GEMINI_MODELS`).
+- `transcribe.ts`: Gemini audio understanding transcribes in-browser voice notes and recorded phone audio (dynamically rotated across `GEMINI_MODELS`).
 - `extract.ts`: Strict JSON schema extraction returning structured messages, explicit coercive threats, demands, and identifiers.
 - `classify.ts`: Multi-label classification with confidence and quotes across 7 categories (workplace harassment, cyber-stalking, blackmail/extortion, criminal threats, non-consensual image sharing, domestic abuse, defamation).
 - `timeline.ts`: Merges evidence chronologically, deduplicates, and flags multi-day time gaps.
@@ -145,10 +146,13 @@ npm run eval
 - **Environment Variables Setup**:
   Configure the following variables in `.env`:
   ```bash
-  CIRCLE_SECRET=your_secret_key_here
-  COUNSELOR_USER=counselor_email@example.org
-  COUNSELOR_PASS=your_secure_password_here
-  GEMINI_API_KEY=your_gemini_api_key_here
+  CIRCLE_SECRET=
+  COUNSELOR_USER=
+  COUNSELOR_PASS=
+  GEMINI_API_KEYS=
+  GEMINI_MODELS=
+  GEMINI_TEXT_TIMEOUT_MS=
+  GEMINI_AUDIO_TIMEOUT_MS=
   ```
   *Security Notice: If `CIRCLE_SECRET`, `COUNSELOR_USER`, or `COUNSELOR_PASS` is missing, endpoints fail with clear error messages instead of falling back to insecure defaults.*
 - **Counselor Demo Portal (`/counselor`)**:
@@ -201,4 +205,50 @@ npm run build
 - **Redaction Integrity**: All text passed into Gemini query generation, grounded explanations, and complaint drafting remains strictly redacted via client and server tokens (`[PHONE_1]`, `[PERSON_1]`).
 - **No External Vector Database**: All embeddings and BM25 statistics are stored in memory and indexed locally to `server/data/legalIndex.json` (gitignored). Cosine similarity and Okapi BM25 are calculated locally in memory with zero external database dependencies.
 - **Untouched Boundaries**: The PIN/encryption/decoy vault, calculator, Circle module, redaction code, and counselor authentication systems were left completely intact and untouched.
+
+---
+
+## 8. Mystery Card: Duplicate Detector
+
+The **Duplicate Detector** is gated behind `featureFlags.duplicateDetector` in `src/featureFlags.ts` and operates in two distinct tiers to identify corroborating submissions and redundant evidence without compromising survivor privacy:
+
+### Part A: Cross-Report Detector (Counselor Portal)
+- **Scope & Location**: `server/services/circle.ts`, `server/routes/api.ts`, and `src/components/CircleCounselorPortal.tsx`.
+- **Purpose**: Enables authorized counselors to review potential duplicate or multi-incident contributions across independent reports without ever exposing raw identifiers or case text.
+- **Scoring Engine**: Evaluates feature similarity dynamically using stored weights (`REPORT_SIMILARITY_WEIGHTS`):
+  - **Phone Hash Match**: 40 points
+  - **Handle Hash Match**: 30 points
+  - **Location Tag Hash Match**: 15 points
+  - **Same Category**: 10 points
+  - **Same Month**: 5 points (*Adjacent Month*: 2 points)
+  - **Formula**: `percentage = Math.round(100 * matchedWeight / possibleWeight)` evaluated across features present in at least one report.
+- **Tiers & Visibility**:
+  - `≥ 80%`: "Very likely the same"
+  - `50% – 79%`: "Possibly related"
+  - `< 50%`: Automatically hidden from counselor review.
+- **Triage Interface**: 4-part cards displaying:
+  1. `Match NN%` with confidence pill and short report identifiers (e.g. `Report #c2b58a`).
+  2. `Why it matches` expandable plain-language reasons based strictly on feature types (e.g. *"Same phone number code (hashed)"*, *"Adjacent month"*).
+  3. `Merge` action linking reports into corroboration clusters (`"Linked reports (N reports from M distinct reporters)"`) without altering threshold count requirements for pattern alerts.
+  4. `Keep` action marking pairs as distinct submissions, with `Undo` support for all decisions.
+- **Privacy Assurance**: The server and portal exclusively exchange short 6-character non-reversible hex IDs (`sha256(pseudonym + ':' + caseId).slice(0, 6)`) and feature comparison reasons. Zero raw phone numbers, handles, pseudonyms, or case descriptions are ever transmitted or logged.
+
+### Part B: In-Case Duplicate Evidence Detector (Client-Side Vault)
+- **Scope & Location**: `src/lib/duplicates.ts`, `src/components/EvidenceReview.tsx`, and `src/components/VaultDashboard.tsx`.
+- **Purpose**: Identifies duplicate screenshots, identical text snippets, or re-shared media within a survivor's case before generating timeline events or legal complaint drafts.
+- **Zero-Network Architecture**: Runs 100% client-side in memory inside the unlocked real vault case; zero evidence content is ever transmitted over the network or executed within decoy mode.
+- **Scoring Engine**: Evaluates composite evidence similarity (`EVIDENCE_SIMILARITY_WEIGHTS`, threshold `≥ 60%`):
+  - **Text 3-Gram Jaccard** (Weight: 60): Character 3-gram set intersection over union on normalized text (`|A ∩ B| / |A ∪ B|`).
+  - **Image dHash & Hamming Distance** (Weight: 30): 64-bit difference hash computed via client-side HTML5 canvas comparison.
+  - **Timestamp Overlap Bonus** (Weight: 10): Proximity scoring for exact matches (1.0), within-hour recordings (0.9), and same-day occurrences (0.7).
+- **Triage Interface & Storage**:
+  - 4-part cards with `Match NN%`, `Why it matches`, `Merge`, and `Keep`, plus `Undo`.
+  - Merged items unify timeline events with linked source badges (`Merged (N sources)`).
+  - Triage decisions and clusters are encrypted directly into IndexedDB (`saveRealCase`) using client AES-GCM-256 keys.
+  - Pending duplicate count badges are prominently rendered in both `VaultDashboard.tsx` tab navigation and `EvidenceReview.tsx` sub-navigation.
+
+> [!NOTE]
+> **Heuristic Nature & Limitations**:
+> Duplicate similarity scores are rule-based heuristic estimates derived from weighted feature comparisons. They are intended as decision-support tooling for survivors and trained counselors, and do not constitute definitive cryptographic proof or judicial determinations of identity.
+
 

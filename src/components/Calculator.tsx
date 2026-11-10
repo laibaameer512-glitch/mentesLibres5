@@ -160,19 +160,19 @@ export const Calculator: React.FC<CalculatorProps> = ({
     }
   };
 
-  // Silent alert stub called when decoy PIN is entered
+  // Silent alert called when decoy PIN is entered
   const triggerSilentAlert = async () => {
-    console.warn('[SECURITY] triggerSilentAlert() triggered: Decoy PIN unlocked under duress.');
     try {
-      await fetch('/api/silent-alert', {
+      const res = await fetch('/api/silent-alert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          timestamp: new Date().toISOString(),
-          clientHint: navigator.userAgent,
-          location: 'approximate_network_cell',
-        }),
       });
+      const data = await res.json().catch(() => ({ status: 'simulated' }));
+      if (data.status === 'dispatched') {
+        console.warn('[SECURITY] Real duress alert dispatched via configured channel.');
+      } else {
+        console.warn('[SECURITY] Simulated duress alert (no channel configured).');
+      }
     } catch {
       // Ignore network errors silently
     }

@@ -27,6 +27,8 @@ export interface VaultCase {
       text: string;
       language: string;
       isThreat?: boolean;
+      sourceEvidenceId?: string;
+      linkedEvidenceIds?: string[];
     }>;
     threats: string[];
     demands: string[];
@@ -55,6 +57,11 @@ export interface VaultCase {
     contributedHashes?: string[];
     selectedIdentifiers?: string[];
   };
+  duplicateDecisions?: Record<string, {
+    decision: 'merge' | 'keep';
+    timestamp: string;
+  }>;
+  mergedEvidenceClusters?: Array<string[]>;
 }
 
 export interface EvidenceItem {

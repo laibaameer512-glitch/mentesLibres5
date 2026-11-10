@@ -1,6 +1,6 @@
 /**
  * Client-Side Cryptographic Engine for Sakhi Vault
- * Implements AES-GCM 256-bit encryption with PBKDF2 (100,000 iterations) key derivation
+ * Implements AES-GCM 256-bit encryption with PBKDF2 (600,000 iterations) key derivation
  * using the browser's native Web Crypto API.
  * Never stores plain PINs; only salted verifier hashes.
  */

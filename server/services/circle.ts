@@ -7,6 +7,7 @@ dotenv.config({ override: true });
 
 export interface CircleRecord {
   hash: string;
+  type?: 'phone' | 'handle' | 'location' | 'other';
   reporterPseudonym: string;
   category: string;
   month: string; // YYYY-MM
@@ -17,12 +18,14 @@ export interface CircleRecord {
 export interface CircleAuditLog {
   actor: string;
   action: string;
+  pairId?: string;
   time: string;
 }
 
 export interface CircleDbData {
   records: CircleRecord[];
   auditLogs: CircleAuditLog[];
+  duplicateDecisions?: Record<string, 'merge' | 'keep'>;
 }
 
 // Memory database synced to disk
@@ -37,10 +40,13 @@ const MAX_REQUESTS_PER_WINDOW = 30;
 function getCircleSecret(): string {
   const secret = process.env.CIRCLE_SECRET;
   if (!secret || secret.trim().length === 0) {
-    throw new Error('Server configuration error: CIRCLE_SECRET environment variable is missing. Please set CIRCLE_SECRET in .env.');
+    throw new Error('[Sakhi Circle] FATAL: CIRCLE_SECRET environment variable is missing or empty. Please set CIRCLE_SECRET in .env.');
   }
   return secret.trim();
 }
+
+// Fail immediately at startup if CIRCLE_SECRET is missing or empty
+getCircleSecret();
 
 /**
  * Normalizes phone numbers to canonical E.164-style Pakistani format (+923XXXXXXXXX)
@@ -136,6 +142,9 @@ function loadDb(): CircleDbData {
       return {
         records: Array.isArray(parsed.records) ? parsed.records : [],
         auditLogs: Array.isArray(parsed.auditLogs) ? parsed.auditLogs : [],
+        duplicateDecisions: parsed.duplicateDecisions && typeof parsed.duplicateDecisions === 'object'
+          ? parsed.duplicateDecisions
+          : {},
       };
     }
   } catch (err) {
@@ -145,6 +154,7 @@ function loadDb(): CircleDbData {
   const freshDb: CircleDbData = {
     records: [],
     auditLogs: [],
+    duplicateDecisions: {},
   };
   saveDb(freshDb);
   return freshDb;
@@ -190,13 +200,17 @@ export function checkIpContributionRateLimit(ip: string): boolean {
 }
 
 /**
- * Pre-seeds 2 dummy reporters sharing fictional identifier (+923004819283 and @suspect_anon_29)
- * In demo mode, recreates circleDb.json on server start with only the 2 fictional seeded reporters (removing test records).
+ * Pre-seeds fictional reports for demo mode:
+ * - One pair legitimately scoring high (shared phone & handle, same category & month, different location tag)
+ * - One pair scoring around 50 to 60 (shared phone, different handle, same category, adjacent month)
+ * - One pair unrelated (< 50, hidden)
  */
 export function seedDemoReporters(force = true): { seeded: boolean; dummyCount: number } {
   // Use valid UUIDs for demo reporters
   const dummy1 = '11111111-1111-4111-8111-111111111111';
   const dummy2 = '22222222-2222-4222-8222-222222222222';
+  const dummy3 = '33333333-3333-4333-8333-333333333333';
+  const dummy4 = '44444444-4444-4444-8444-444444444444';
 
   // Target demo fictional phone: +923004819283
   const demoPhoneNormalized = normalizePhone('+92 300 4819283');
@@ -206,10 +220,29 @@ export function seedDemoReporters(force = true): { seeded: boolean; dummyCount: 
   const demoHandleNormalized = normalizeHandle('@suspect_anon_29');
   const demoHandleHash = computeIdentifierHmac(demoHandleNormalized);
 
+  // Fictional location tags
+  const demoLocANormalized = normalizeGenericIdentifier('lahore-gulberg');
+  const demoLocationAHash = computeIdentifierHmac(demoLocANormalized);
+
+  const demoLocBNormalized = normalizeGenericIdentifier('rawalpindi-cantt');
+  const demoLocationBHash = computeIdentifierHmac(demoLocBNormalized);
+
+  // Secondary handle for dummy3
+  const demoHandleCNormalized = normalizeHandle('@suspect_secondary_88');
+  const demoHandleCHash = computeIdentifierHmac(demoHandleCNormalized);
+
+  // Unrelated identifiers for dummy4
+  const unrelatedPhoneNormalized = normalizePhone('+92 321 0000000');
+  const unrelatedPhoneHash = computeIdentifierHmac(unrelatedPhoneNormalized);
+
+  const unrelatedHandleNormalized = normalizeHandle('@unrelated_random_acc');
+  const unrelatedHandleHash = computeIdentifierHmac(unrelatedHandleNormalized);
+
   const cleanRecords: CircleRecord[] = [
-    // Dummy 1: Contributed in Oct 2026
+    // Report 1: Dummy 1 (case-alpha) - Oct 2026, blackmail/extortion
     {
       hash: demoPhoneHash,
+      type: 'phone',
       reporterPseudonym: dummy1,
       category: 'blackmail/extortion',
       month: '2026-10',
@@ -218,28 +251,96 @@ export function seedDemoReporters(force = true): { seeded: boolean; dummyCount: 
     },
     {
       hash: demoHandleHash,
+      type: 'handle',
       reporterPseudonym: dummy1,
-      category: 'cyber-stalking',
+      category: 'blackmail/extortion',
       month: '2026-10',
       caseId: 'dummy-case-alpha',
-      createdAt: new Date('2026-10-18T12:00:00Z').toISOString(),
+      createdAt: new Date('2026-10-14T10:00:00Z').toISOString(),
     },
-    // Dummy 2: Contributed in Nov 2026
+    {
+      hash: demoLocationAHash,
+      type: 'location',
+      reporterPseudonym: dummy1,
+      category: 'blackmail/extortion',
+      month: '2026-10',
+      caseId: 'dummy-case-alpha',
+      createdAt: new Date('2026-10-14T10:00:00Z').toISOString(),
+    },
+
+    // Report 2: Dummy 2 (case-beta) - Oct 2026, blackmail/extortion
+    // High match with Report 1: shared phone & handle, same category & month, different location tag
+    // Matched: 40 + 30 + 0 + 10 + 5 = 85 / 100 => 85% ("Very likely the same")
     {
       hash: demoPhoneHash,
+      type: 'phone',
       reporterPseudonym: dummy2,
-      category: 'workplace/educational harassment',
-      month: '2026-11',
+      category: 'blackmail/extortion',
+      month: '2026-10',
       caseId: 'dummy-case-beta',
-      createdAt: new Date('2026-11-01T15:30:00Z').toISOString(),
+      createdAt: new Date('2026-10-18T12:00:00Z').toISOString(),
     },
     {
       hash: demoHandleHash,
+      type: 'handle',
       reporterPseudonym: dummy2,
-      category: 'cyber-stalking',
-      month: '2026-11',
+      category: 'blackmail/extortion',
+      month: '2026-10',
       caseId: 'dummy-case-beta',
-      createdAt: new Date('2026-11-02T16:00:00Z').toISOString(),
+      createdAt: new Date('2026-10-18T12:00:00Z').toISOString(),
+    },
+    {
+      hash: demoLocationBHash,
+      type: 'location',
+      reporterPseudonym: dummy2,
+      category: 'blackmail/extortion',
+      month: '2026-10',
+      caseId: 'dummy-case-beta',
+      createdAt: new Date('2026-10-18T12:00:00Z').toISOString(),
+    },
+
+    // Report 3: Dummy 3 (case-gamma) - Nov 2026 (adjacent month), blackmail/extortion
+    // Scores around 50 to 60 with Report 1:
+    // Shared phone (40/40), diff handle (0/30), location in report 1/2 only (0/15), same cat (10/10), adjacent month (2/5)
+    // Matched: 40 + 0 + 0 + 10 + 2 = 52 / 100 => 52% ("Possibly related")
+    {
+      hash: demoPhoneHash,
+      type: 'phone',
+      reporterPseudonym: dummy3,
+      category: 'blackmail/extortion',
+      month: '2026-11',
+      caseId: 'dummy-case-gamma',
+      createdAt: new Date('2026-11-01T15:30:00Z').toISOString(),
+    },
+    {
+      hash: demoHandleCHash,
+      type: 'handle',
+      reporterPseudonym: dummy3,
+      category: 'blackmail/extortion',
+      month: '2026-11',
+      caseId: 'dummy-case-gamma',
+      createdAt: new Date('2026-11-01T15:30:00Z').toISOString(),
+    },
+
+    // Report 4: Dummy 4 (case-delta) - Apr 2026, workplace/educational harassment
+    // Completely unrelated: score < 50 (hidden from view)
+    {
+      hash: unrelatedPhoneHash,
+      type: 'phone',
+      reporterPseudonym: dummy4,
+      category: 'workplace/educational harassment',
+      month: '2026-04',
+      caseId: 'dummy-case-delta',
+      createdAt: new Date('2026-04-10T09:00:00Z').toISOString(),
+    },
+    {
+      hash: unrelatedHandleHash,
+      type: 'handle',
+      reporterPseudonym: dummy4,
+      category: 'workplace/educational harassment',
+      month: '2026-04',
+      caseId: 'dummy-case-delta',
+      createdAt: new Date('2026-04-10T09:00:00Z').toISOString(),
     },
   ];
 
@@ -252,11 +353,12 @@ export function seedDemoReporters(force = true): { seeded: boolean; dummyCount: 
         time: new Date().toISOString(),
       },
     ],
+    duplicateDecisions: {},
   };
 
   saveDb(db);
-  console.log('[Sakhi Circle] Recreated circleDb.json with only the 2 fictional seeded reporters for demo mode.');
-  return { seeded: true, dummyCount: 2 };
+  console.log('[Sakhi Circle] Recreated circleDb.json with fictional seeded reporters for demo mode.');
+  return { seeded: true, dummyCount: 4 };
 }
 
 // Auto-seed on server start if CIRCLE_SECRET is configured (recreating clean seeded store)
@@ -326,10 +428,11 @@ export function contributeIdentifiers(
     if (!alreadyExists) {
       db.records.push({
         hash,
+        type: item.type,
         reporterPseudonym,
         category: category || 'harassment',
         month: currentMonth,
-        caseId,
+        caseId: caseId || 'case-default',
         createdAt: nowIso,
       });
       contributedCount++;
@@ -419,7 +522,7 @@ export function withdrawReporterCase(reporterPseudonym: string, caseId?: string)
 /**
  * Counselor view:
  * Shows patterns with short hash (first 6 chars), distinct reporter count,
- * first/last seen month, category.
+ * first/last seen month, category, and linked reports cluster summary.
  * Absolutely NO content, names, raw identifiers, or evidence.
  */
 export function getCounselorPatterns(): Array<{
@@ -429,6 +532,7 @@ export function getCounselorPatterns(): Array<{
   lastSeenMonth: string;
   category: string;
   isPattern: boolean;
+  linkedReports?: string;
 }> {
   const db = loadDb();
   const map = new Map<string, CircleRecord[]>();
@@ -439,6 +543,10 @@ export function getCounselorPatterns(): Array<{
     map.set(rec.hash, list);
   }
 
+  // Pre-calculate clusters of merged reports
+  const reports = buildReportsFromRecords(db.records);
+  const reportClusters = getMergedReportClusters(db, reports);
+
   const patterns: Array<{
     shortHash: string;
     distinctReporterCount: number;
@@ -446,6 +554,7 @@ export function getCounselorPatterns(): Array<{
     lastSeenMonth: string;
     category: string;
     isPattern: boolean;
+    linkedReports?: string;
   }> = [];
 
   for (const [hash, records] of map.entries()) {
@@ -470,6 +579,17 @@ export function getCounselorPatterns(): Array<{
       }
     }
 
+    // Check if any record in this pattern belongs to a merged cluster
+    let linkedReportsStr: string | undefined = undefined;
+    for (const r of records) {
+      const repKey = `${r.reporterPseudonym}::${r.caseId || 'case-default'}`;
+      const clusterInfo = reportClusters.get(repKey);
+      if (clusterInfo && clusterInfo.reportCount >= 2) {
+        linkedReportsStr = `Linked reports (${clusterInfo.reportCount} reports from ${clusterInfo.distinctReporterCount} distinct reporters)`;
+        break;
+      }
+    }
+
     patterns.push({
       shortHash: `#${hash.slice(0, 6)}`,
       distinctReporterCount: count,
@@ -477,6 +597,7 @@ export function getCounselorPatterns(): Array<{
       lastSeenMonth,
       category: topCat,
       isPattern: count >= 3,
+      linkedReports: linkedReportsStr,
     });
   }
 
@@ -499,4 +620,349 @@ export function getCounselorPatterns(): Array<{
 export function getCounselorAuditLogs(): CircleAuditLog[] {
   const db = loadDb();
   return db.auditLogs.slice(0, 50);
+}
+
+// ==========================================
+// Cross-Report Duplicate Detector Engine
+// ==========================================
+
+export const REPORT_SIMILARITY_WEIGHTS = {
+  phone: 40,
+  handle: 30,
+  location: 15,
+  category: 10,
+  monthSame: 5,
+  monthAdjacent: 2,
+} as const;
+
+export interface ReportItem {
+  reportId: string;
+  reporterPseudonym: string;
+  caseId: string;
+  shortId: string;
+  month: string;
+  category: string;
+  phoneHashes: Set<string>;
+  handleHashes: Set<string>;
+  locationHashes: Set<string>;
+  otherHashes: Set<string>;
+}
+
+export function areMonthsAdjacent(m1: string, m2: string): boolean {
+  if (!m1 || !m2) return false;
+  const p1 = m1.split('-').map(Number);
+  const p2 = m2.split('-').map(Number);
+  if (p1.length < 2 || p2.length < 2 || isNaN(p1[0]) || isNaN(p1[1]) || isNaN(p2[0]) || isNaN(p2[1])) {
+    return false;
+  }
+  const monthsDiff = Math.abs((p1[0] * 12 + p1[1]) - (p2[0] * 12 + p2[1]));
+  return monthsDiff === 1;
+}
+
+export function buildReportsFromRecords(records: CircleRecord[]): ReportItem[] {
+  const map = new Map<string, ReportItem>();
+
+  for (const r of records) {
+    const caseId = r.caseId || 'case-default';
+    const key = `${r.reporterPseudonym}::${caseId}`;
+
+    if (!map.has(key)) {
+      const shortId = crypto
+        .createHash('sha256')
+        .update(r.reporterPseudonym + ':' + caseId)
+        .digest('hex')
+        .slice(0, 6);
+
+      map.set(key, {
+        reportId: key,
+        reporterPseudonym: r.reporterPseudonym,
+        caseId,
+        shortId,
+        month: r.month,
+        category: r.category,
+        phoneHashes: new Set<string>(),
+        handleHashes: new Set<string>(),
+        locationHashes: new Set<string>(),
+        otherHashes: new Set<string>(),
+      });
+    }
+
+    const report = map.get(key)!;
+    if (r.type === 'phone') {
+      report.phoneHashes.add(r.hash);
+    } else if (r.type === 'handle') {
+      report.handleHashes.add(r.hash);
+    } else if (r.type === 'location') {
+      report.locationHashes.add(r.hash);
+    } else {
+      report.otherHashes.add(r.hash);
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+export function computeReportPairSimilarity(
+  reportA: ReportItem,
+  reportB: ReportItem
+): { score: number; label: 'Very likely the same' | 'Possibly related'; reasons: string[] } | null {
+  const weights = REPORT_SIMILARITY_WEIGHTS;
+  let possibleWeight = 0;
+  let matchedWeight = 0;
+  const reasons: string[] = [];
+
+  // 1. Phone match
+  const hasPhone = reportA.phoneHashes.size > 0 || reportB.phoneHashes.size > 0;
+  if (hasPhone) {
+    possibleWeight += weights.phone;
+    let phoneMatched = false;
+    for (const h of reportA.phoneHashes) {
+      if (reportB.phoneHashes.has(h)) {
+        phoneMatched = true;
+        break;
+      }
+    }
+    if (phoneMatched) {
+      matchedWeight += weights.phone;
+      reasons.push('Same phone number code (hashed)');
+    } else if (reportA.phoneHashes.size > 0 && reportB.phoneHashes.size > 0) {
+      reasons.push('Phone number code differs');
+    } else {
+      reasons.push('Phone number code only in one report');
+    }
+  }
+
+  // 2. Handle match
+  const hasHandle = reportA.handleHashes.size > 0 || reportB.handleHashes.size > 0;
+  if (hasHandle) {
+    possibleWeight += weights.handle;
+    let handleMatched = false;
+    for (const h of reportA.handleHashes) {
+      if (reportB.handleHashes.has(h)) {
+        handleMatched = true;
+        break;
+      }
+    }
+    if (handleMatched) {
+      matchedWeight += weights.handle;
+      reasons.push('Same social handle code (hashed)');
+    } else if (reportA.handleHashes.size > 0 && reportB.handleHashes.size > 0) {
+      reasons.push('Social handle code differs');
+    } else {
+      reasons.push('Social handle code only in one report');
+    }
+  }
+
+  // 3. Location match
+  const hasLocation = reportA.locationHashes.size > 0 || reportB.locationHashes.size > 0;
+  if (hasLocation) {
+    possibleWeight += weights.location;
+    let locationMatched = false;
+    for (const h of reportA.locationHashes) {
+      if (reportB.locationHashes.has(h)) {
+        locationMatched = true;
+        break;
+      }
+    }
+    if (locationMatched) {
+      matchedWeight += weights.location;
+      reasons.push('Same location tag (hashed)');
+    } else if (reportA.locationHashes.size > 0 && reportB.locationHashes.size > 0) {
+      reasons.push('Location tag differs');
+    } else {
+      reasons.push('Location tag only in one report');
+    }
+  }
+
+  // 4. Same category
+  possibleWeight += weights.category;
+  if (reportA.category && reportB.category && reportA.category === reportB.category) {
+    matchedWeight += weights.category;
+    reasons.push('Same category');
+  } else {
+    reasons.push('Different category');
+  }
+
+  // 5. Month match
+  possibleWeight += weights.monthSame;
+  if (reportA.month && reportB.month && reportA.month === reportB.month) {
+    matchedWeight += weights.monthSame;
+    reasons.push('Same month');
+  } else if (areMonthsAdjacent(reportA.month, reportB.month)) {
+    matchedWeight += weights.monthAdjacent;
+    reasons.push('Adjacent month');
+  } else {
+    reasons.push('Different month');
+  }
+
+  const score = possibleWeight > 0 ? Math.round((100 * matchedWeight) / possibleWeight) : 0;
+
+  // Below 50 not shown
+  if (score < 50) return null;
+
+  const label = score >= 80 ? 'Very likely the same' : 'Possibly related';
+  return { score, label, reasons };
+}
+
+export function computeReportPairId(reportIdA: string, reportIdB: string): string {
+  const [first, second] = [reportIdA, reportIdB].sort();
+  return 'pair_' + crypto.createHash('sha256').update(first + '::' + second).digest('hex').slice(0, 12);
+}
+
+export function getCounselorDuplicates(): Array<{
+  pairId: string;
+  score: number;
+  label: 'Very likely the same' | 'Possibly related';
+  reasons: string[];
+  reportA: { shortId: string; month: string; category: string };
+  reportB: { shortId: string; month: string; category: string };
+  decision: 'merge' | 'keep' | null;
+}> {
+  const db = loadDb();
+  const reports = buildReportsFromRecords(db.records);
+  const duplicates: Array<{
+    pairId: string;
+    score: number;
+    label: 'Very likely the same' | 'Possibly related';
+    reasons: string[];
+    reportA: { shortId: string; month: string; category: string };
+    reportB: { shortId: string; month: string; category: string };
+    decision: 'merge' | 'keep' | null;
+  }> = [];
+
+  const decisions = db.duplicateDecisions || {};
+
+  for (let i = 0; i < reports.length; i++) {
+    for (let j = i + 1; j < reports.length; j++) {
+      const repA = reports[i];
+      const repB = reports[j];
+
+      const sim = computeReportPairSimilarity(repA, repB);
+      if (!sim) continue;
+
+      const pairId = computeReportPairId(repA.reportId, repB.reportId);
+      const decision = decisions[pairId] || null;
+
+      duplicates.push({
+        pairId,
+        score: sim.score,
+        label: sim.label,
+        reasons: sim.reasons,
+        reportA: {
+          shortId: repA.shortId,
+          month: repA.month,
+          category: repA.category,
+        },
+        reportB: {
+          shortId: repB.shortId,
+          month: repB.month,
+          category: repB.category,
+        },
+        decision,
+      });
+    }
+  }
+
+  // Sorted by score descending
+  duplicates.sort((a, b) => b.score - a.score);
+  return duplicates;
+}
+
+export function saveDuplicateDecision(pairId: string, decision: 'merge' | 'keep'): void {
+  const db = loadDb();
+  if (!db.duplicateDecisions) {
+    db.duplicateDecisions = {};
+  }
+  db.duplicateDecisions[pairId] = decision;
+
+  db.auditLogs.unshift({
+    actor: 'counselor',
+    action: decision === 'merge' ? 'DUPLICATE_MERGE' : 'DUPLICATE_KEEP',
+    pairId,
+    time: new Date().toISOString(),
+  });
+
+  saveDb(db);
+}
+
+export function undoDuplicateDecision(pairId: string): void {
+  const db = loadDb();
+  if (db.duplicateDecisions && db.duplicateDecisions[pairId]) {
+    delete db.duplicateDecisions[pairId];
+
+    db.auditLogs.unshift({
+      actor: 'counselor',
+      action: 'DUPLICATE_UNDO',
+      pairId,
+      time: new Date().toISOString(),
+    });
+
+    saveDb(db);
+  }
+}
+
+/**
+ * Computes clusters of merged reports for the pattern view
+ */
+export function getMergedReportClusters(
+  db: CircleDbData,
+  reports: ReportItem[]
+): Map<string, { reportCount: number; distinctReporterCount: number }> {
+  const decisions = db.duplicateDecisions || {};
+  const parent = new Map<string, string>();
+
+  function find(x: string): string {
+    if (!parent.has(x)) parent.set(x, x);
+    if (parent.get(x) !== x) {
+      parent.set(x, find(parent.get(x)!));
+    }
+    return parent.get(x)!;
+  }
+
+  function union(x: string, y: string) {
+    const rootX = find(x);
+    const rootY = find(y);
+    if (rootX !== rootY) {
+      parent.set(rootX, rootY);
+    }
+  }
+
+  // Initialize all reports as their own parent
+  reports.forEach((r) => find(r.reportId));
+
+  // Connect merged reports
+  for (let i = 0; i < reports.length; i++) {
+    for (let j = i + 1; j < reports.length; j++) {
+      const pairId = computeReportPairId(reports[i].reportId, reports[j].reportId);
+      if (decisions[pairId] === 'merge') {
+        union(reports[i].reportId, reports[j].reportId);
+      }
+    }
+  }
+
+  // Group by root
+  const groups = new Map<string, ReportItem[]>();
+  for (const r of reports) {
+    const root = find(r.reportId);
+    const list = groups.get(root) || [];
+    list.push(r);
+    groups.set(root, list);
+  }
+
+  // Map each reportId to cluster stats
+  const result = new Map<string, { reportCount: number; distinctReporterCount: number }>();
+  for (const list of groups.values()) {
+    if (list.length >= 2) {
+      const distinctReporters = new Set(list.map((r) => r.reporterPseudonym)).size;
+      const stats = {
+        reportCount: list.length,
+        distinctReporterCount: distinctReporters,
+      };
+      for (const r of list) {
+        result.set(r.reportId, stats);
+      }
+    }
+  }
+
+  return result;
 }

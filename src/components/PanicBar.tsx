@@ -7,24 +7,33 @@ interface PanicBarProps {
 }
 
 export const PanicBar: React.FC<PanicBarProps> = ({ onPanicLock, vaultType }) => {
-  const [secondsRemaining, setSecondsRemaining] = useState(30);
+  const getTimeoutDuration = () => {
+    const saved = parseInt(localStorage.getItem('autoLockTimeout') || '60', 10);
+    return Number.isNaN(saved) || saved <= 0 ? 60 : saved;
+  };
+
+  const [secondsRemaining, setSecondsRemaining] = useState(getTimeoutDuration);
   const lastActivityRef = useRef<number>(Date.now());
   const timerRef = useRef<any>(null);
 
   useEffect(() => {
+    const timeoutDuration = getTimeoutDuration();
+    setSecondsRemaining(timeoutDuration);
+
     // 1. Reset timer on user interaction
     const updateActivity = () => {
       lastActivityRef.current = Date.now();
-      setSecondsRemaining(30);
+      setSecondsRemaining(getTimeoutDuration());
     };
 
     const events = ['mousedown', 'mousemove', 'keydown', 'touchstart', 'scroll'];
     events.forEach((ev) => window.addEventListener(ev, updateActivity, { passive: true }));
 
-    // 2. Interval check for 30s inactivity
+    // 2. Interval check for inactivity
     timerRef.current = setInterval(() => {
+      const duration = getTimeoutDuration();
       const elapsed = Math.floor((Date.now() - lastActivityRef.current) / 1000);
-      const remaining = Math.max(0, 30 - elapsed);
+      const remaining = Math.max(0, duration - elapsed);
       setSecondsRemaining(remaining);
 
       if (remaining <= 0) {

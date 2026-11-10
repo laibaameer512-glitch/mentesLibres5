@@ -1,8 +1,16 @@
 import fs from 'fs';
 import path from 'path';
 import { GoogleGenAI } from '@google/genai';
-import { ai, hasApiKey } from './geminiClient.ts';
+import {
+  ai,
+  hasApiKey,
+  withRotation,
+  getLastSuccessModel,
+  DEFAULT_EMBEDDING_MODEL,
+} from './geminiClient.ts';
 import { Type } from '@google/genai';
+
+export { getLastSuccessModel };
 
 export interface LegalSection {
   id: string;
@@ -76,7 +84,6 @@ export const RETRIEVAL_THRESHOLD = parseFloat(
 const DATA_DIR = path.resolve(process.cwd(), 'server/data');
 const LEGAL_DIR = path.resolve(DATA_DIR, 'legal');
 const INDEX_FILE = path.resolve(DATA_DIR, 'legalIndex.json');
-const DEMO_CACHE_FILE = path.resolve(DATA_DIR, 'demoLegalCache.json');
 const DEMO_CASES_CACHE_FILE = path.resolve(DATA_DIR, 'demoCasesCache.json');
 
 let inMemoryIndex: LegalIndexData | null = null;
@@ -419,7 +426,7 @@ export function parseCorpusFiles(dirPath: string): {
 // ==========================================
 
 export async function findEmbeddingModel(): Promise<string> {
-  if (!hasApiKey) return 'models/gemini-embedding-001';
+  if (!hasApiKey) return DEFAULT_EMBEDDING_MODEL;
   try {
     const list = await ai.models.list();
     const candidateModels: string[] = [];
@@ -434,18 +441,16 @@ export async function findEmbeddingModel(): Promise<string> {
       }
     }
 
-    // Prefer gemini-embedding-001 or gemini-embedding-2 or text-embedding-004
     const preferred = candidateModels.find(
       (m) =>
-        m.includes('gemini-embedding-001') ||
-        m.includes('gemini-embedding-2') ||
+        m.includes('embedding') ||
         m.includes('text-embedding')
     );
 
-    return preferred || candidateModels[0] || 'models/gemini-embedding-001';
+    return preferred || candidateModels[0] || DEFAULT_EMBEDDING_MODEL;
   } catch (err) {
-    console.warn('[LEGAL RAG] Failed to dynamically query embedding models, using gemini-embedding-001:', err);
-    return 'models/gemini-embedding-001';
+    console.warn('[LEGAL RAG] Failed to dynamically query embedding models, using default:', err);
+    return DEFAULT_EMBEDDING_MODEL;
   }
 }
 
@@ -522,153 +527,7 @@ export async function loadOrBuildIndex(forceRebuild = false): Promise<LegalIndex
 // ==========================================
 // 5. Gemini Key/Model Rotation Layer
 // ==========================================
-//
-// Reads GEMINI_API_KEYS (comma-separated) and GEMINI_MODELS (comma-separated,
-// priority order) from env.  Falls back to the single-key / single-model
-// already used by the app when those vars are absent.
-//
-// Candidates are ordered: for each model (priority order) × for each key.
-// Rules per attempt:
-//   429       → cooldown 60 s (30 min if second 429 within 10 min); try next pair
-//   403/404   → disable pair for the process lifetime;             try next pair
-//   5xx/timeout→ try next pair, no cooldown recorded
-//   success   → return result
-//
-// Per-model throttle: ≥ 4 s between successive calls to the same model
-// (keeps us comfortably under the 15 RPM free-tier limit).
-//
-// If ALL pairs fail: throw so the caller's existing catch block fires, logging
-// the existing '[QUERY WRITER] LLM …' or '[EXPLAIN SECTIONS] LLM …' warn and
-// returning template cards — identical to current fallback behaviour.
-
-interface LlmPair {
-  key: string;
-  model: string;
-}
-
-interface PairState {
-  disabledForProcess: boolean;
-  cooldownUntil: number;      // epoch ms
-  firstQuota429At: number;    // epoch ms of first 429 in the rolling 10-min window
-}
-
-// Singleton state shared across all calls within this process.
-const _pairState = new Map<string, PairState>();
-const _modelLastCall = new Map<string, number>(); // model → epoch ms of last call
-
-/**
- * Last model name that produced a successful LLM response.
- * Updated by withRotation on every status=ok call; read by warm-cache.ts.
- * Never contains key material.
- */
-let _lastSuccessModel = '(unknown)';
-export function getLastSuccessModel(): string { return _lastSuccessModel; }
-
-function _pairKey(p: LlmPair): string {
-  return `${p.model}::${p.key}`;
-}
-
-function _getState(p: LlmPair): PairState {
-  const k = _pairKey(p);
-  if (!_pairState.has(k)) {
-    _pairState.set(k, { disabledForProcess: false, cooldownUntil: 0, firstQuota429At: 0 });
-  }
-  return _pairState.get(k)!;
-}
-
-function _buildCandidates(): LlmPair[] {
-  // Keys: GEMINI_API_KEYS (comma-sep) or fall back to single-key vars
-  const rawKeys = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
-  const keys = rawKeys.split(',').map((k) => k.trim()).filter(Boolean);
-
-  // Models: GEMINI_MODELS (comma-sep, priority order) or fall back to current model
-  const rawModels = process.env.GEMINI_MODELS || 'gemini-3.8-flash';
-  const models = rawModels.split(',').map((m) => m.trim()).filter(Boolean);
-
-  // Ordered: model priority first, then key
-  const pairs: LlmPair[] = [];
-  for (const model of models) {
-    for (const key of keys) {
-      pairs.push({ key, model });
-    }
-  }
-  return pairs;
-}
-
-function _keyHint(key: string): string {
-  return key.length >= 4 ? `...${key.slice(-4)}` : '(short)';
-}
-
-/** Enforce ≥ 4 s between calls to the same model. */
-async function _throttleModel(model: string): Promise<void> {
-  const last = _modelLastCall.get(model) ?? 0;
-  const wait = last + 4000 - Date.now();
-  if (wait > 0) {
-    await new Promise<void>((r) => setTimeout(r, wait));
-  }
-  _modelLastCall.set(model, Date.now());
-}
-
-/**
- * Run `fn(pair)` with the rotation/cooldown/throttle logic.
- * `callLabel` is used only for logging (e.g. 'queries', 'explain').
- * Throws if all pairs fail so the caller's existing catch block fires.
- */
-async function withRotation<T>(
-  callLabel: string,
-  fn: (pair: LlmPair) => Promise<T>
-): Promise<T> {
-  const candidates = _buildCandidates();
-
-  if (candidates.length === 0) {
-    throw new Error(`[LLM ROUTER] No API keys configured (${callLabel})`);
-  }
-
-  let lastErr: unknown;
-
-  for (const pair of candidates) {
-    const state = _getState(pair);
-
-    // Skip permanently disabled pairs
-    if (state.disabledForProcess) continue;
-
-    // Skip pairs still on cooldown
-    if (Date.now() < state.cooldownUntil) continue;
-
-    // Per-model throttle
-    await _throttleModel(pair.model);
-
-    try {
-      const result = await fn(pair);
-      _lastSuccessModel = pair.model;
-      console.log(`[LLM] model=${pair.model} key=${_keyHint(pair.key)} status=ok (${callLabel})`);
-      return result;
-    } catch (err: unknown) {
-      lastErr = err;
-      const status = (err as Record<string, unknown>)?.status as number | undefined;
-
-      if (status === 429) {
-        const now = Date.now();
-        const TEN_MIN = 10 * 60 * 1000;
-        const isRepeat = state.firstQuota429At > 0 && (now - state.firstQuota429At) < TEN_MIN;
-        const cooldownMs = isRepeat ? 30 * 60 * 1000 : 60 * 1000;
-        state.cooldownUntil = now + cooldownMs;
-        if (!isRepeat) state.firstQuota429At = now;
-        console.log(`[LLM] model=${pair.model} key=${_keyHint(pair.key)} status=429 (${callLabel}) — cooldown ${cooldownMs / 1000}s`);
-      } else if (status === 403 || status === 404) {
-        state.disabledForProcess = true;
-        console.log(`[LLM] model=${pair.model} key=${_keyHint(pair.key)} status=${status} (${callLabel}) — disabled for process`);
-      } else {
-        // 5xx, timeout, network error — no cooldown, try next pair
-        const statusStr = status !== undefined ? String(status) : 'timeout/network';
-        console.log(`[LLM] model=${pair.model} key=${_keyHint(pair.key)} status=${statusStr} (${callLabel}) — transient, trying next`);
-      }
-    }
-  }
-
-  // All pairs exhausted — re-throw last error so existing warn+fallback fires
-  throw lastErr ?? new Error(`[LLM ROUTER] All pairs failed (${callLabel})`);
-}
+// Rotation logic and model selection are centralized in server/services/geminiClient.ts
 
 // ==========================================
 // 6. Query Writer
@@ -722,24 +581,19 @@ Key Facts: ${keyFacts}
 
 Respond with a JSON array containing 2 to 3 strings only.`;
 
-    const response = await withRotation('queries', (pair) => {
-      const pairAi = new GoogleGenAI({ apiKey: pair.key, httpOptions: { headers: { 'User-Agent': 'aistudio-build' } } });
-      return withTimeout(
-        pairAi.models.generateContent({
-          model: pair.model,
-          contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-            },
+    const response = await withRotation('queries', (pair, pairAi) =>
+      pairAi.models.generateContent({
+        model: pair.model,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
           },
-        }),
-        10000,
-        'Query writer timed out'
-      );
-    });
+        },
+      })
+    );
 
     const parsed = JSON.parse(response.text || '[]') as string[];
     const validQueries = parsed
@@ -994,32 +848,27 @@ ${JSON.stringify(
   2
 )}`;
 
-    const response = await withRotation('explain', (pair) => {
-      const pairAi = new GoogleGenAI({ apiKey: pair.key, httpOptions: { headers: { 'User-Agent': 'aistudio-build' } } });
-      return withTimeout(
-        pairAi.models.generateContent({
-          model: pair.model,
-          contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  chunkId: { type: Type.STRING },
-                  whyItMayApply: { type: Type.STRING },
-                  plainExplanation: { type: Type.STRING },
-                },
-                required: ['chunkId', 'whyItMayApply', 'plainExplanation'],
+    const response = await withRotation('explain', (pair, pairAi) =>
+      pairAi.models.generateContent({
+        model: pair.model,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                chunkId: { type: Type.STRING },
+                whyItMayApply: { type: Type.STRING },
+                plainExplanation: { type: Type.STRING },
               },
+              required: ['chunkId', 'whyItMayApply', 'plainExplanation'],
             },
           },
-        }),
-        12000,
-        'explainSections call timed out'
-      );
-    });
+        },
+      })
+    );
 
     const parsed = JSON.parse(response.text || '[]') as Array<{
       chunkId: string;
@@ -1154,9 +1003,9 @@ CRITICAL MANDATORY INSTRUCTIONS:
      "citedChunkIds": ["chunkId1", "chunkId2"]
    }`;
 
-    const response = await withTimeout(
-      ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+    const response = await withRotation('grounding-answer', (pair, pairAi) =>
+      pairAi.models.generateContent({
+        model: pair.model,
         contents: `${prompt}
 
 User Question:
@@ -1186,9 +1035,7 @@ ${JSON.stringify(
             required: ['answer', 'citedChunkIds'],
           },
         },
-      }),
-      12000,
-      'askLegalQuestion timed out'
+      })
     );
 
     const parsed = JSON.parse(response.text || '{}') as {
@@ -1243,25 +1090,8 @@ ${JSON.stringify(
 }
 
 // ==========================================
-// 9. Demo Case Cache
+// 9. Demo Cases Cache (server/data/demoCasesCache.json)
 // ==========================================
-
-export function getDemoCaseCache(): {
-  caseId: string;
-  disclaimer: string;
-  isPlaceholder: boolean;
-  citedCards: CitedLegalCard[];
-} | null {
-  try {
-    if (fs.existsSync(DEMO_CACHE_FILE)) {
-      const raw = fs.readFileSync(DEMO_CACHE_FILE, 'utf-8');
-      return JSON.parse(raw);
-    }
-  } catch (err) {
-    console.warn('[DEMO CACHE] Error loading demo cache file:', err);
-  }
-  return null;
-}
 
 export interface CachedDemoCase {
   caseId: string;

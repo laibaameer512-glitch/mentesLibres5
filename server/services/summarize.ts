@@ -1,4 +1,4 @@
-import { ai, hasApiKey } from './geminiClient.ts';
+import { hasApiKey, withRotation } from './geminiClient.ts';
 
 export interface SummaryResult {
   lines: string[];
@@ -53,10 +53,12 @@ Demands: ${demands.join('; ')}
 
 Output exactly 5 lines, numbered 1 to 5.`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-    });
+    const response = await withRotation('summarize', (pair, client) =>
+      client.models.generateContent({
+        model: pair.model,
+        contents: prompt,
+      })
+    );
 
     const raw = response.text?.trim() || '';
     const lines = raw

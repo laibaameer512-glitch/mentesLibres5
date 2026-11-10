@@ -23,6 +23,7 @@ import {
   writeSearchQueries,
   LegalSection,
 } from '../services/legal.ts';
+import { getGeminiModels } from '../services/geminiClient.ts';
 
 interface EvalScenario {
   id: string;
@@ -46,7 +47,7 @@ async function main() {
   // ── Startup diagnostics (safe — never prints the full key) ───────────────
   const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY ?? '';
   const keyHint = apiKey.length >= 4 ? `...${apiKey.slice(-4)}` : apiKey ? '(set, <4 chars)' : '(not set)';
-  const MODEL_NAME = 'gemini-3.8-flash'; // must match legal.ts
+  const MODEL_NAME = getGeminiModels()[0];
   console.log(`API key ending: ${keyHint}   Model: ${MODEL_NAME}\n`);
   // ─────────────────────────────────────────────────────────────────────────
 

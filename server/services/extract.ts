@@ -1,4 +1,4 @@
-import { ai, hasApiKey } from './geminiClient.ts';
+import { hasApiKey, withRotation } from './geminiClient.ts';
 import { Type } from '@google/genai';
 
 export interface ExtractedMessage {
@@ -33,9 +33,10 @@ export async function extractEvidenceEntities(
   }
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: `You are an expert evidence intake specialist parsing sanitized harassment evidence records.
+    const response = await withRotation('extract', (pair, client) =>
+      client.models.generateContent({
+        model: pair.model,
+        contents: `You are an expert evidence intake specialist parsing sanitized harassment evidence records.
 Analyze the following evidence text from platform: "${platformHint}".
 Extract:
 1. Every distinct message with speaker, approximate/exact timestamp, text, and language.
@@ -48,45 +49,46 @@ Evidence text to analyze:
 ---
 ${rawText}
 ---`,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            messages: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  speaker: { type: Type.STRING },
-                  timestamp: { type: Type.STRING },
-                  text: { type: Type.STRING },
-                  language: { type: Type.STRING },
-                  isThreat: { type: Type.BOOLEAN },
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              messages: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    speaker: { type: Type.STRING },
+                    timestamp: { type: Type.STRING },
+                    text: { type: Type.STRING },
+                    language: { type: Type.STRING },
+                    isThreat: { type: Type.BOOLEAN },
+                  },
+                  required: ['speaker', 'text'],
                 },
-                required: ['speaker', 'text'],
               },
+              threats: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+              demands: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+              platform: { type: Type.STRING },
+              identifiers: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+              summaryOneLiner: { type: Type.STRING },
             },
-            threats: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-            },
-            demands: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-            },
-            platform: { type: Type.STRING },
-            identifiers: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-            },
-            summaryOneLiner: { type: Type.STRING },
+            required: ['messages', 'threats', 'demands', 'platform', 'identifiers'],
           },
-          required: ['messages', 'threats', 'demands', 'platform', 'identifiers'],
         },
-      },
-    });
+      })
+    );
 
     const parsed = JSON.parse(response.text || '{}') as ExtractedEvidenceData;
     // Ensure ids exist

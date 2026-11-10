@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { VaultCase, saveRealCase, deleteRealCase } from '../lib/db.ts';
 import { PanicBar } from './PanicBar.tsx';
 import { EvidenceIntake } from './EvidenceIntake.tsx';
@@ -10,6 +10,7 @@ import { SettingsScreen } from './SettingsScreen.tsx';
 import { CircleModule } from './CircleModule.tsx';
 import { featureFlags } from '../featureFlags.ts';
 import { redactTextLocally, restoreTextLocally } from '../lib/redact.ts';
+import { findInCaseDuplicates } from '../lib/duplicates.ts';
 import {
   Shield,
   FolderOpen,
@@ -52,6 +53,18 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
   const [newCaseTitle, setNewCaseTitle] = useState('');
 
   const currentCase = cases.find((c) => c.id === activeCaseId) || cases[0] || null;
+
+  // Pending duplicate count badge for Evidence Review screen
+  const [pendingDuplicatesCount, setPendingDuplicatesCount] = useState(0);
+  useEffect(() => {
+    if (featureFlags.duplicateDetector && currentCase && currentCase.evidenceItems.length > 1) {
+      findInCaseDuplicates(currentCase.evidenceItems, currentCase.duplicateDecisions)
+        .then((matches) => setPendingDuplicatesCount(matches.filter((m) => !m.decision).length))
+        .catch(() => setPendingDuplicatesCount(0));
+    } else {
+      setPendingDuplicatesCount(0);
+    }
+  }, [currentCase?.evidenceItems, currentCase?.duplicateDecisions]);
 
   // Create new case
   const handleCreateCase = async (e: React.FormEvent) => {
@@ -322,6 +335,11 @@ export const VaultDashboard: React.FC<VaultDashboardProps> = ({
               >
                 <Icon className="w-3.5 h-3.5" />
                 <span>{tab.label}</span>
+                {tab.id === 'review' && featureFlags.duplicateDetector && pendingDuplicatesCount > 0 && (
+                  <span className="ml-1 px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 font-bold text-[10px]">
+                    {pendingDuplicatesCount}
+                  </span>
+                )}
               </button>
             );
           })}

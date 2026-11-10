@@ -16,7 +16,7 @@ import {
   embedText,
   LegalIndexData,
 } from '../services/legal.ts';
-import { ai, hasApiKey } from '../services/geminiClient.ts';
+import { ai, hasApiKey, DEFAULT_EMBEDDING_MODEL } from '../services/geminiClient.ts';
 
 const LEGAL_DIR = path.resolve(process.cwd(), 'server/data/legal');
 const INDEX_FILE = path.resolve(process.cwd(), 'server/data/legalIndex.json');
@@ -45,7 +45,7 @@ async function main() {
 
   // 2. Discover available Gemini embedding models
   console.log('\n[2/4] Querying available Gemini embedding models...');
-  let embeddingModel = 'models/gemini-embedding-001';
+  let embeddingModel = DEFAULT_EMBEDDING_MODEL;
 
   if (!hasApiKey) {
     console.warn('⚠️ No GEMINI_API_KEY detected. Ingesting with BM25 keyword index only.');
@@ -69,7 +69,7 @@ async function main() {
       embeddingModel = await findEmbeddingModel();
       console.log(`✓ Selected embedding model: ${embeddingModel}`);
     } catch (err: any) {
-      console.warn(`⚠️ Could not list models from Gemini API (${err.message}), falling back to gemini-embedding-001.`);
+      console.warn(`⚠️ Could not list models from Gemini API (${err.message}), falling back to default embedding model.`);
     }
   }
 

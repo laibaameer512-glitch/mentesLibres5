@@ -7,16 +7,18 @@ interface DeveloperHealthModalProps {
 
 interface ModelHealthItem {
   model: string;
-  task: string;
+  task?: string;
   status: 'pass' | 'fail';
   latencyMs?: number;
   responsePreview?: string;
   error?: string;
+  errorType?: 'timeout' | 'not found' | 'quota' | 'other';
 }
 
 interface HealthResponse {
   overall: 'healthy' | 'degraded' | 'offline_or_missing_key';
   hasApiKey: boolean;
+  activeModel?: string;
   models: ModelHealthItem[];
   timestamp: string;
 }
@@ -75,22 +77,31 @@ export const DeveloperHealthModal: React.FC<DeveloperHealthModalProps> = ({ onCl
           </button>
         </div>
 
-        {/* Overall Status Badge */}
+        {/* Overall Status & Active Model Badge */}
         {healthData && (
-          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
-            <div className="flex items-center gap-2">
-              <Activity className="w-4 h-4 text-teal-400" />
-              <span className="text-xs font-semibold text-slate-300">Overall Pipeline Status:</span>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-teal-400" />
+                <span className="text-xs font-semibold text-slate-300">Overall Pipeline Status:</span>
+              </div>
+              <span
+                className={`text-[11px] font-bold font-mono px-2 py-0.5 rounded uppercase tracking-wider ${
+                  healthData.overall === 'healthy'
+                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                    : 'bg-amber-950 text-amber-300 border border-amber-800'
+                }`}
+              >
+                {healthData.overall}
+              </span>
             </div>
-            <span
-              className={`text-[11px] font-bold font-mono px-2 py-0.5 rounded uppercase tracking-wider ${
-                healthData.overall === 'healthy'
-                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                  : 'bg-amber-950 text-amber-300 border border-amber-800'
-              }`}
-            >
-              {healthData.overall}
-            </span>
+
+            {healthData.activeModel && (
+              <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-slate-950/70 border border-slate-800 text-[11px]">
+                <span className="text-slate-400">Currently Active Model:</span>
+                <span className="font-mono font-bold text-teal-400">{healthData.activeModel}</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -134,7 +145,7 @@ export const DeveloperHealthModal: React.FC<DeveloperHealthModalProps> = ({ onCl
                   </div>
                 </div>
 
-                <p className="text-[11px] text-slate-400">{item.task}</p>
+                {item.task && <p className="text-[11px] text-slate-400">{item.task}</p>}
 
                 {item.responsePreview && (
                   <p className="text-[10px] font-mono text-slate-500 truncate">
@@ -143,9 +154,14 @@ export const DeveloperHealthModal: React.FC<DeveloperHealthModalProps> = ({ onCl
                 )}
 
                 {item.error && (
-                  <p className="text-[10px] font-mono text-red-400 bg-red-950/40 p-1.5 rounded border border-red-900/50">
-                    Error: {item.error}
-                  </p>
+                  <div className="text-[10px] font-mono text-red-400 bg-red-950/40 p-2 rounded border border-red-900/50 space-y-1">
+                    {item.errorType && (
+                      <span className="inline-block px-1.5 py-0.5 rounded uppercase font-bold text-[9px] bg-red-900/80 text-red-200 border border-red-700/60 mr-1.5">
+                        {item.errorType}
+                      </span>
+                    )}
+                    <span>{item.error}</span>
+                  </div>
                 )}
               </div>
             ))

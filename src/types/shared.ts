@@ -147,11 +147,34 @@ export interface CounselorPatternItem {
   lastSeenMonth: string;
   category: string;
   isPattern: boolean;
+  linkedReports?: string;
+}
+
+export interface CounselorDuplicatePair {
+  pairId: string;
+  score: number;
+  label: 'Very likely the same' | 'Possibly related';
+  reasons: string[];
+  reportA: { shortId: string; month: string; category: string };
+  reportB: { shortId: string; month: string; category: string };
+  decision?: 'merge' | 'keep' | null;
+}
+
+export interface InCaseDuplicateMatch {
+  pairId: string;
+  itemAId: string;
+  itemBId: string;
+  itemALabel: string;
+  itemBLabel: string;
+  score: number;
+  reasons: string[];
+  decision?: 'merge' | 'keep' | null;
 }
 
 export interface CircleAuditLogItem {
   actor: string;
   action: string;
+  pairId?: string;
   time: string;
 }
 

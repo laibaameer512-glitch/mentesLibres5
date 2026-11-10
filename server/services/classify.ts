@@ -1,4 +1,4 @@
-import { ai, hasApiKey } from './geminiClient.ts';
+import { hasApiKey, withRotation } from './geminiClient.ts';
 import { Type } from '@google/genai';
 
 export const ALLOWED_CATEGORIES = [
@@ -41,9 +41,10 @@ export async function classifyHarassment(
   }
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: `You are an expert legal triage and harassment classification analyst.
+    const response = await withRotation('classify', (pair, client) =>
+      client.models.generateContent({
+        model: pair.model,
+        contents: `You are an expert legal triage and harassment classification analyst.
 Analyze the provided evidence statements, threats, and demands.
 Select all applicable categories from ONLY the following allowed labels:
 1. workplace/educational harassment
@@ -97,7 +98,8 @@ ${JSON.stringify(demands)}`,
           required: ['primaryCategory', 'urgencyLevel', 'labels', 'rationale'],
         },
       },
-    });
+    })
+  );
 
     const parsed = JSON.parse(response.text || '{}') as ClassificationResult;
     // Validate categories are from allowed set

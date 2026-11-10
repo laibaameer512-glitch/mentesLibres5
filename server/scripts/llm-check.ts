@@ -12,6 +12,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { GoogleGenAI } from '@google/genai';
+import { getGeminiModels, getGeminiApiKeys } from '../services/geminiClient.ts';
 
 interface Pair { key: string; model: string }
 
@@ -20,10 +21,8 @@ function keyHint(key: string): string {
 }
 
 function buildPairs(): Pair[] {
-  const rawKeys = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
-  const keys = rawKeys.split(',').map((k) => k.trim()).filter(Boolean);
-  const rawModels = process.env.GEMINI_MODELS || 'gemini-3.8-flash';
-  const models = rawModels.split(',').map((m) => m.trim()).filter(Boolean);
+  const keys = getGeminiApiKeys();
+  const models = getGeminiModels();
 
   const pairs: Pair[] = [];
   for (const model of models) {

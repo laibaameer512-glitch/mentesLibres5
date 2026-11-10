@@ -5,7 +5,7 @@ jurisdiction: punjab
 type: law
 sourceUrl: https://www.punjablaws.gov.pk/lawspdf/2634.pdf
 lastVerified: 2026-11-09
-verifiedBy: Legal Extraction Pipeline, Automated Verification Suite
+verifiedBy: ""
 ---
 
 ## Section 1

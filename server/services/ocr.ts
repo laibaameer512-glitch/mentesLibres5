@@ -1,4 +1,4 @@
-import { ai, hasApiKey } from './geminiClient.ts';
+import { hasApiKey, withRotation } from './geminiClient.ts';
 import { Type } from '@google/genai';
 
 export interface OCRResult {
@@ -25,18 +25,19 @@ export async function performOCR(
     // Strip data prefix if present
     const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '');
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: mimeType || 'image/png',
-              data: cleanBase64,
+    const response = await withRotation('ocr', (pair, client) =>
+      client.models.generateContent({
+        model: pair.model,
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                mimeType: mimeType || 'image/png',
+                data: cleanBase64,
+              },
             },
-          },
-          {
-            text: `Extract all visible text from this chat screenshot or document. 
+            {
+              text: `Extract all visible text from this chat screenshot or document. 
 Support English, Roman Urdu (e.g. 'tum meri baat suno warna...', 'ab dekhna'), and Arabic/Urdu script.
 Preserve speaker labels, timestamps, and message sequence accurately.
 Provide output in JSON format with fields:
@@ -44,26 +45,27 @@ Provide output in JSON format with fields:
 - confidence: number between 0.0 and 1.0 indicating OCR quality
 - detectedLanguages: array of language codes e.g. ["English", "Roman Urdu", "Urdu"]
 - notes: brief observation of message styling or sender markers`,
-          },
-        ],
-      },
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            extractedText: { type: Type.STRING },
-            confidence: { type: Type.NUMBER },
-            detectedLanguages: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
             },
-            notes: { type: Type.STRING },
-          },
-          required: ['extractedText', 'confidence', 'detectedLanguages'],
+          ],
         },
-      },
-    });
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              extractedText: { type: Type.STRING },
+              confidence: { type: Type.NUMBER },
+              detectedLanguages: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+              notes: { type: Type.STRING },
+            },
+            required: ['extractedText', 'confidence', 'detectedLanguages'],
+          },
+        },
+      })
+    );
 
     const parsed = JSON.parse(response.text || '{}');
     return {

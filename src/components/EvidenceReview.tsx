@@ -1,5 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { VaultCase, saveRealCase } from '../lib/db.ts';
+import { featureFlags } from '../featureFlags.ts';
+import { InCaseDuplicateMatch } from '../types/shared.ts';
+import {
+  findInCaseDuplicates,
+  mergeEvidenceItemsInCase,
+  keepEvidenceItemsApartInCase,
+  undoEvidenceDecisionInCase,
+} from '../lib/duplicates.ts';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -14,6 +22,12 @@ import {
   Clock,
   Shield,
   FileCheck,
+  Copy,
+  ChevronDown,
+  ChevronUp,
+  GitMerge,
+  Split,
+  RotateCcw,
 } from 'lucide-react';
 
 interface EvidenceReviewProps {
@@ -47,17 +61,61 @@ export const EvidenceReview: React.FC<EvidenceReviewProps> = ({
   const [newDemand, setNewDemand] = useState('');
   const [isSaved, setIsSaved] = useState(false);
 
-  if (!review) {
-    return (
-      <div className="p-8 border border-dashed border-slate-800 rounded-2xl text-center space-y-3 bg-slate-900/40">
-        <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto" />
-        <h3 className="text-sm font-semibold text-white">No AI Extraction Records Available Yet</h3>
-        <p className="text-xs text-slate-400 max-w-sm mx-auto">
-          Please run the AI Evidence Processing Pipeline from the Evidence Intake tab or load the demo dataset to populate parsed messages, threats, and legal classifications.
-        </p>
-      </div>
-    );
-  }
+  // Duplicate Detector State (client-side in-case comparison)
+  const [activeTab, setActiveTab] = useState<'review' | 'duplicates'>('review');
+  const [duplicateMatches, setDuplicateMatches] = useState<InCaseDuplicateMatch[]>([]);
+  const [expandedReasons, setExpandedReasons] = useState<Record<string, boolean>>({});
+  const [duplicateFilter, setDuplicateFilter] = useState<'all' | 'pending' | 'merged' | 'kept'>('all');
+
+  useEffect(() => {
+    if (review) {
+      setMessages(review.messages || []);
+      setThreats(review.threats || []);
+      setDemands(review.demands || []);
+      setSummaryLines(review.summary5Lines || []);
+      setLabels(review.classificationLabels || []);
+    }
+  }, [review]);
+
+  useEffect(() => {
+    if (featureFlags.duplicateDetector && currentCase.evidenceItems.length > 1) {
+      findInCaseDuplicates(currentCase.evidenceItems, currentCase.duplicateDecisions)
+        .then(setDuplicateMatches)
+        .catch((err) => console.warn('In-case duplicate detection error:', err));
+    } else {
+      setDuplicateMatches([]);
+    }
+  }, [currentCase.evidenceItems, currentCase.duplicateDecisions]);
+
+  const pendingDuplicatesCount = duplicateMatches.filter((m) => !m.decision).length;
+
+  const toggleReasons = (pairId: string) => {
+    setExpandedReasons((prev) => ({ ...prev, [pairId]: !prev[pairId] }));
+  };
+
+  const handleMergeDuplicate = async (match: InCaseDuplicateMatch) => {
+    const updated = mergeEvidenceItemsInCase(currentCase, match.pairId, match.itemAId, match.itemBId);
+    await saveRealCase(activeKey, updated);
+    onCaseUpdated(updated);
+    if (updated.extractedReview?.messages) {
+      setMessages(updated.extractedReview.messages);
+    }
+  };
+
+  const handleKeepDuplicateApart = async (match: InCaseDuplicateMatch) => {
+    const updated = keepEvidenceItemsApartInCase(currentCase, match.pairId);
+    await saveRealCase(activeKey, updated);
+    onCaseUpdated(updated);
+  };
+
+  const handleUndoDuplicateDecision = async (match: InCaseDuplicateMatch) => {
+    const updated = undoEvidenceDecisionInCase(currentCase, match.pairId);
+    await saveRealCase(activeKey, updated);
+    onCaseUpdated(updated);
+    if (updated.extractedReview?.messages) {
+      setMessages(updated.extractedReview.messages);
+    }
+  };
 
   // Message Actions
   const handleMove = (index: number, direction: 'up' | 'down') => {
@@ -128,6 +186,8 @@ export const EvidenceReview: React.FC<EvidenceReviewProps> = ({
   const handleSaveChanges = async () => {
     const updatedReview = {
       ...review,
+      platform: review?.platform || 'Direct Messages',
+      identifiers: review?.identifiers || [],
       messages,
       threats,
       demands,
@@ -192,7 +252,54 @@ export const EvidenceReview: React.FC<EvidenceReviewProps> = ({
         </div>
       </div>
 
-      {/* SECTION 1: EXTRACTED MESSAGES & TIMELINE ORDER */}
+      {/* Sub-Navigation Tabs */}
+      {featureFlags.duplicateDetector && (
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+          <button
+            onClick={() => setActiveTab('review')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
+              activeTab === 'review'
+                ? 'bg-teal-600 text-white shadow-sm'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>Extracted Timeline & Messages</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('duplicates')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
+              activeTab === 'duplicates'
+                ? 'bg-teal-600 text-white shadow-sm'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <Copy className="w-3.5 h-3.5" />
+            <span>Duplicate Detector</span>
+            {pendingDuplicatesCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 font-bold text-[10px]">
+                {pendingDuplicatesCount}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* VIEW 1: TIMELINE & MESSAGES REVIEW */}
+      {activeTab === 'review' && (
+        <>
+          {!review ? (
+            <div className="p-8 border border-dashed border-slate-800 rounded-2xl text-center space-y-3 bg-slate-900/40">
+              <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto" />
+              <h3 className="text-sm font-semibold text-white">No AI Extraction Records Available Yet</h3>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                Please run the AI Evidence Processing Pipeline from the Evidence Intake tab or load the demo dataset to populate parsed messages, threats, and legal classifications.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* SECTION 1: EXTRACTED MESSAGES & TIMELINE ORDER */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 md:p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-white flex items-center gap-2">
@@ -269,6 +376,12 @@ export const EvidenceReview: React.FC<EvidenceReviewProps> = ({
                       {msg.isThreat && (
                         <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-red-900/80 text-red-200 border border-red-700">
                           COERCIVE THREAT
+                        </span>
+                      )}
+                      {msg.linkedEvidenceIds && msg.linkedEvidenceIds.length > 1 && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-teal-900/80 text-teal-200 border border-teal-700 flex items-center gap-1">
+                          <GitMerge className="w-2.5 h-2.5" />
+                          <span>Merged ({msg.linkedEvidenceIds.length} sources)</span>
                         </span>
                       )}
                     </div>
@@ -462,6 +575,192 @@ export const EvidenceReview: React.FC<EvidenceReviewProps> = ({
           ))}
         </div>
       </div>
+            </>
+          )}
+        </>
+      )}
+
+      {/* DUPLICATE DETECTOR TAB */}
+      {activeTab === 'duplicates' && (
+        <div className="space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                <Copy className="w-4 h-4 text-teal-400" />
+                <span>In-Case Duplicate Evidence Detector</span>
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Client-side comparison of 3-gram text Jaccard, image dHash, and timestamp overlap across evidence items.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+              <button
+                onClick={() => setDuplicateFilter('all')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition ${
+                  duplicateFilter === 'all' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                All ({duplicateMatches.length})
+              </button>
+              <button
+                onClick={() => setDuplicateFilter('pending')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition ${
+                  duplicateFilter === 'pending' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Pending ({duplicateMatches.filter((m) => !m.decision).length})
+              </button>
+              <button
+                onClick={() => setDuplicateFilter('merged')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition ${
+                  duplicateFilter === 'merged' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Merged ({duplicateMatches.filter((m) => m.decision === 'merge').length})
+              </button>
+              <button
+                onClick={() => setDuplicateFilter('kept')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition ${
+                  duplicateFilter === 'kept' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Kept Apart ({duplicateMatches.filter((m) => m.decision === 'keep').length})
+              </button>
+            </div>
+          </div>
+
+          {duplicateMatches.length === 0 ? (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center text-xs text-slate-500">
+              No potential duplicates detected (threshold &ge; 60%). Evidence items appear sufficiently distinct.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {duplicateMatches
+                .filter((m) => {
+                  if (duplicateFilter === 'pending') return !m.decision;
+                  if (duplicateFilter === 'merged') return m.decision === 'merge';
+                  if (duplicateFilter === 'kept') return m.decision === 'keep';
+                  return true;
+                })
+                .map((match) => (
+                  <div
+                    key={match.pairId}
+                    className={`bg-slate-900 border rounded-2xl p-4 transition shadow-sm space-y-3 ${
+                      match.decision === 'merge'
+                        ? 'border-teal-700/80 bg-teal-950/15'
+                        : match.decision === 'keep'
+                        ? 'border-slate-800 bg-slate-950/40 opacity-75'
+                        : 'border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    {/* 1. MATCH NN% */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-base font-extrabold text-white font-mono">
+                          Match {match.score}%
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-teal-950 text-teal-300 border border-teal-700/80">
+                          {match.score >= 80 ? 'High Confidence Duplicate' : 'Moderate Duplicate Risk'}
+                        </span>
+                        {match.decision && (
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase ${
+                              match.decision === 'merge'
+                                ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                                : 'bg-slate-800 text-slate-400 border border-slate-700'
+                            }`}
+                          >
+                            {match.decision === 'merge' ? 'Merged in Timeline' : 'Kept Apart'}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="text-[11px] font-mono text-slate-400 flex items-center gap-2">
+                        <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-teal-400">
+                          {match.itemALabel}
+                        </span>
+                        <span className="text-slate-600">vs</span>
+                        <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-teal-400">
+                          {match.itemBLabel}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 2. WHY IT MATCHES */}
+                    <div className="space-y-1.5">
+                      <button
+                        onClick={() => toggleReasons(match.pairId)}
+                        className="text-xs font-semibold text-slate-300 hover:text-white flex items-center gap-1.5 transition"
+                      >
+                        <span>Why it matches</span>
+                        {expandedReasons[match.pairId] ? (
+                          <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                        )}
+                      </button>
+
+                      {(expandedReasons[match.pairId] ?? true) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
+                          {match.reasons.map((reason, rIdx) => (
+                            <div
+                              key={rIdx}
+                              className="px-2.5 py-1.5 rounded-lg bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-300 flex items-center gap-2"
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0" />
+                              <span>{reason}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 3 & 4. MERGE & KEEP ACTIONS */}
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                      <div className="text-[11px] text-slate-500">
+                        {match.decision === 'merge'
+                          ? 'Items combined into a single timeline event.'
+                          : match.decision === 'keep'
+                          ? 'Items marked as distinct evidence.'
+                          : 'Pending your review decision.'}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {match.decision ? (
+                          <button
+                            onClick={() => handleUndoDuplicateDecision(match)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium border border-slate-700 transition"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Undo</span>
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleMergeDuplicate(match)}
+                              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-teal-600 hover:bg-teal-500 active:scale-95 text-white rounded-xl text-xs font-semibold shadow-sm transition"
+                            >
+                              <GitMerge className="w-3.5 h-3.5" />
+                              <span>Merge</span>
+                            </button>
+                            <button
+                              onClick={() => handleKeepDuplicateApart(match)}
+                              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-700 transition"
+                            >
+                              <Split className="w-3.5 h-3.5" />
+                              <span>Keep</span>
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

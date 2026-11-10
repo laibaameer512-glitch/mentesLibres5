@@ -1,4 +1,4 @@
-import { ai, hasApiKey } from './geminiClient.ts';
+import { hasApiKey, withRotation } from './geminiClient.ts';
 import { CitedLegalCard } from './legal.ts';
 
 export type AuthorityType =
@@ -181,13 +181,11 @@ Draft a complete, highly structured, and formal complaint containing:
 
 Maintain a solemn, objective tone suitable for official submission.`;
 
-    const response = await withTimeout(
-      ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+    const response = await withRotation('complaint', (pair, client) =>
+      client.models.generateContent({
+        model: pair.model,
         contents: prompt,
-      }),
-      12000,
-      'generateComplaintDraft call timed out'
+      })
     );
 
     const fullDraft = response.text?.trim() || '';
