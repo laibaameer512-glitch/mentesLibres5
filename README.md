@@ -34,8 +34,103 @@ All AI processing runs strictly on the Node/Express backend (`server.ts`):
 - `classify.ts`: Multi-label classification with confidence and quotes across 7 categories (workplace harassment, cyber-stalking, blackmail/extortion, criminal threats, non-consensual image sharing, domestic abuse, defamation).
 - `timeline.ts`: Merges evidence chronologically, deduplicates, and flags multi-day time gaps.
 - `summarize.ts`: 5-line plain-language factual case summary in English or Urdu.
-- `legal.ts`: Clean interface (`retrieveSections`, `explainSections`) backed by `/server/data/legalCorpus.placeholder.json`.
-- `complaint.ts`: Generates formal complaint drafts addressed to specific authorities (FIA Cybercrime Wing, Police Station SHO, Workplace Inquiry Committee, University Ombudsperson, Women Protection Cell) with bilingual English/Urdu toggle and high-fidelity PDF export with timeline annex.
+- `legal.ts`: Grounded Legal RAG Pipeline (`retrieveSections`, `explainSections`, `askLegalQuestion`) backed by verified Markdown legal corpus in `/server/data/legal/*.md`.
+- `complaint.ts`: Generates formal complaint drafts addressed to specific authorities (FIA Cybercrime Wing, Police Station SHO, Workplace Inquiry Committee, University Ombudsperson, Women Protection Cell) citing only verified statutory provisions with bilingual English/Urdu toggle and high-fidelity PDF export with timeline annex.
+
+---
+
+## 4. Grounded Legal RAG Pipeline (`/server/services/legal.ts`)
+
+The legal module provides educational statutory grounding without inventing law text, section numbers, or external URLs.
+
+### 4.1 Strict Grounding & Anti-Hallucination Guarantees
+- **Corpus Exclusivity**: The legal pipeline strictly queries markdown files located in `/server/data/legal/*.md`. No laws, section numbers, or external URLs are ever invented or recalled by LLM memory.
+- **Citation Verifier**: Every legal card returned by Gemini is checked against the retrieved chunks. Any card with an ungrounded or hallucinated `chunkId` is dropped.
+- **Verbatim Snippets**: Cards always display the original verbatim text snippet directly from the markdown chunk, never a rewritten or paraphrased model quote.
+- **Verification Badging**: Chunks verified by legal entities display the verifier name (e.g. `Legal Aid Clinic`); chunks missing verification are explicitly badged **"Not yet verified"**.
+- **Mandatory Disclaimer**: Every legal view and API response prominently displays:
+  > *"Information and draft only, not legal advice."*
+- **No-Answer Rule**: If no chunk passes the retrieval threshold, the pipeline returns:
+  > *"No matching section found. Please consult a lawyer."*
+
+### 4.2 Corpus Format (`/server/data/legal/*.md`)
+Each Act is stored as a single markdown file with YAML front matter:
+```markdown
+---
+act: Digital Safety & Harassment Act (Sample Draft)
+year: 2024
+jurisdiction: federal # "federal" or province name (e.g. "punjab", "sindh")
+type: law            # "law" or "process"
+sourceUrl: https://example.gov.pk/legal/placeholder-sec14b
+lastVerified: 2024-01-15
+verifiedBy: Legal Aid Clinic
+---
+
+## Section 14-B
+title: Coercion, Blackmail & Digital Extortion (PLACEHOLDER)
+tags: blackmail/extortion, coercion, digital extortion, private photos
+text:
+[PLACEHOLDER - REPLACE WITH VERIFIED TEXT] Covers threatening to release sensitive private media or personal information to demand money, favor, or compliance. Anyone who coerces or blackmails another individual by threatening publication of private images or communications commits an offense under this section.
+```
+
+### 4.3 Ingestion Pipeline (`npm run ingest`)
+Run ingestion to parse, validate, and index all markdown files:
+```bash
+npm run ingest
+```
+The ingestion script (`server/scripts/ingest.ts`):
+1. **Parses & Validates**: Validates required fields (`act`, `year`, `jurisdiction`, `type`, `sourceUrl`, `lastVerified`, `verifiedBy`, non-empty section text). Fails with a clear list of problems if any validation error occurs.
+2. **Generates Chunks**: Creates one chunk per section with `id = actSlug-year-section`. Sub-sections (`(1)`, `(2)`) are split into sub-chunks if text is long, repeating act and section in each chunk.
+3. **Discovers Gemini Embedding Models**: Queries `ai.models.list()` dynamically instead of assuming a hardcoded model name (prefers `models/gemini-embedding-001` or `models/gemini-embedding-2`).
+4. **Builds Local In-Memory Index**: Generates 3072-dimensional vector embeddings and builds an Okapi BM25 keyword index (`idf`, term frequencies, document lengths).
+5. **Local Persistence**: Writes index to `server/data/legalIndex.json` (gitignored; zero external databases).
+
+### 4.4 Hybrid Retrieval & Thresholds
+- **Query Writer**: Generates 2 to 3 short English search queries from redacted classification categories and key incident facts.
+- **Hybrid Scoring**: Combines vector cosine similarity with Okapi BM25 scores via **Reciprocal Rank Fusion (RRF)** ($k=60$).
+- **Configurable Threshold**:
+  - Environment variable: `LEGAL_RETRIEVAL_THRESHOLD` (defaults to `0.012`).
+  - Semantic noise floor: vector matches below `0.58` cosine similarity are ignored so unrelated queries trigger the no-answer rule.
+- **Province Filter**: Federal chunks are always eligible. Provincial chunks are only eligible if the user's selected province matches (e.g., selecting "Punjab" unlocks Punjab procedural frameworks while excluding other provinces).
+
+### 4.5 Free-Form Legal Question Answering (`POST /api/legal/ask`)
+Users can submit open-ended questions about their situation:
+- Endpoint: `POST /api/legal/ask` (also available as `POST /api/ai/legal/ask`).
+- Body: `{ "question": "...", "province": "federal", "language": "en" | "ur" }`
+- Grounded strictly in retrieved chunks; unretrieved sections are barred from citations.
+- If no provisions match, returns: *"No matching section found. Please consult a lawyer."*
+
+### 4.6 Complaint Generator Integration
+- The Complaint Generator displays all verified statutory provisions retrieved for the case.
+- Users can review, uncheck, or remove any individual provision.
+- The complaint generator cites **only verified cards (act and section)** and leaves out any section the user removed.
+
+### 4.7 Offline Demo Mode Cache
+- Built-in demo case (`case-demo-104`) results are cached in `server/data/demoLegalCache.json`.
+- When offline or when the Gemini API is unreachable, the system displays pre-cached verified cards with the prominent banner:
+  > **AI unavailable, using sample result**
+  > *Offline mode or Gemini model unavailable; displaying pre-cached statutory mapping for this case.*
+
+### 4.8 Evaluation (`npm run eval`)
+Run the automated RAG evaluation suite:
+```bash
+npm run eval
+```
+- Reads `/server/data/legal/eval.json` test scenarios.
+- Measures:
+  1. **Top-6 Hit Rate**: % of scenarios where expected chunk appears in top 6 (target $\ge 80\%$).
+  2. **Citation Accuracy**: % of citations strictly present in retrieved set (must be **100.0%**).
+- Evaluation File Format (`server/data/legal/eval.json`):
+```json
+[
+  {
+    "id": "eval-blackmail-01",
+    "description": "Blackmail and digital extortion with ultimatum threatening to distribute photos",
+    "province": "federal",
+    "expectedChunkIds": ["digital-safety-harassment-act-sample-draft-2024-14-b"]
+  }
+]
+```
 
 ---
 
@@ -81,10 +176,29 @@ All AI processing runs strictly on the Node/Express backend (`server.ts`):
 # Install dependencies
 npm install
 
+# Run legal corpus ingestion (builds local vectors + BM25 index)
+npm run ingest
+
+# Run legal RAG evaluation
+npm run eval
+
 # Run full-stack dev server (Express + Vite on Port 3000)
 npm run dev
+
+# Type check
+npm run lint
 
 # Build for production
 npm run build
 ```
+
+---
+
+## 7. Assumptions & Implementation Notes
+
+- **Corpus Exclusivity**: In accordance with the prompt's strict requirement (*"NEVER write, recall or invent law text, section numbers or URLs. The corpus comes only from markdown files in /server/data/legal/*.md"*), the legal corpus is populated with clearly marked placeholder acts and processes based on the project's initial sample draft regulatory framework. Real statutory provisions can be dropped into `/server/data/legal/*.md` and indexed via `npm run ingest` at any time without code changes.
+- **Dynamic Embedding Discovery**: Gemini embedding model selection does not assume a fixed model name; `ai.models.list()` queries available embedding models and picks `models/gemini-embedding-001` or `models/gemini-embedding-2` based on supported actions.
+- **Redaction Integrity**: All text passed into Gemini query generation, grounded explanations, and complaint drafting remains strictly redacted via client and server tokens (`[PHONE_1]`, `[PERSON_1]`).
+- **No External Vector Database**: All embeddings and BM25 statistics are stored in memory and indexed locally to `server/data/legalIndex.json` (gitignored). Cosine similarity and Okapi BM25 are calculated locally in memory with zero external database dependencies.
+- **Untouched Boundaries**: The PIN/encryption/decoy vault, calculator, Circle module, redaction code, and counselor authentication systems were left completely intact and untouched.
 

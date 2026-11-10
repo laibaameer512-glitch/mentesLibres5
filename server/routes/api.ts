@@ -5,7 +5,15 @@ import { extractEvidenceEntities } from '../services/extract.ts';
 import { classifyHarassment } from '../services/classify.ts';
 import { buildChronologicalTimeline } from '../services/timeline.ts';
 import { summarizeCaseFacts } from '../services/summarize.ts';
-import { retrieveSections, explainSections } from '../services/legal.ts';
+import {
+  retrieveSections,
+  explainSections,
+  writeSearchQueries,
+  askLegalQuestion,
+  getDemoCaseCache,
+  getDemoCasesCache,
+  CachedDemoCase,
+} from '../services/legal.ts';
 import { generateComplaintDraft } from '../services/complaint.ts';
 import { ai, hasApiKey } from '../services/geminiClient.ts';
 import {
@@ -298,17 +306,209 @@ apiRouter.post('/ai/summarize', async (req: Request, res: Response) => {
 });
 
 // 7. Legal Grounding Sections & Plain Explanations
-apiRouter.post('/ai/legal', async (req: Request, res: Response) => {
+const handleLegalRetrieval = async (req: Request, res: Response) => {
+  const DISCLAIMER = 'Information and draft only, not legal advice.';
   try {
-    const { queries, caseFacts } = req.body;
-    const sections = await retrieveSections(queries || []);
-    const citedCards = await explainSections(caseFacts || '', sections);
-    return res.json({ sections, citedCards });
+    const {
+      queries,
+      caseFacts,
+      province,
+      language = 'en',
+      caseId,
+      classificationLabels = [],
+    } = req.body || {};
+
+    const isDemoCase =
+      caseId === 'case-demo-104' ||
+      (typeof caseFacts === 'string' &&
+        (caseFacts.includes('Workplace & Academic Extortion') ||
+          caseFacts.includes('24 ghantay hain tumhare paas')));
+
+    // Check if offline or demo case cache should be returned
+    if (isDemoCase && (!hasApiKey || req.query.offline === 'true')) {
+      const demoCache = getDemoCaseCache();
+      if (demoCache) {
+        return res.json({
+          sections: demoCache.citedCards.map((c) => ({
+            id: c.chunkId || '',
+            act: c.act,
+            section: c.section,
+            title: c.title,
+            snippet: c.snippet,
+            sourceUrl: c.sourceUrl,
+            jurisdiction: c.jurisdiction,
+            lastVerified: c.lastVerified,
+            verifiedBy: c.verifiedBy,
+            isPlaceholder: c.isPlaceholder,
+          })),
+          citedCards: demoCache.citedCards,
+          isFallback: true,
+          isDemoCached: true,
+          disclaimer: DISCLAIMER,
+        });
+      }
+    }
+
+    // Check for demoCasesCache.json hit before entering live pipeline
+    const demoCasesCache = getDemoCasesCache();
+    if (demoCasesCache?.cases) {
+      const normalizeText = (str: string) => str.trim().toLowerCase().replace(/\s+/g, ' ');
+      const normalizeProvince = (p?: string | null) => {
+        const norm = (p || '').trim().toLowerCase();
+        return !norm || norm === 'all' || norm === 'federal' ? 'federal' : norm;
+      };
+
+      let matchedCase: CachedDemoCase | null = null;
+      const targetProvince = normalizeProvince(province);
+
+      // (a) Match by cached case id if the frontend sends one
+      if (caseId && typeof caseId === 'string' && demoCasesCache.cases[caseId]) {
+        const candidate = demoCasesCache.cases[caseId];
+        if (
+          !candidate.isPlaceholder &&
+          normalizeProvince(candidate.province) === targetProvince
+        ) {
+          matchedCase = candidate;
+        }
+      }
+
+      // (b) Match by case text against the description text warm-cache.ts used for each case
+      if (!matchedCase) {
+        const textToMatch =
+          typeof caseFacts === 'string'
+            ? caseFacts
+            : typeof req.body?.description === 'string'
+            ? req.body.description
+            : '';
+        const normReqText = normalizeText(textToMatch);
+        if (normReqText.length > 0) {
+          for (const candidate of Object.values(demoCasesCache.cases)) {
+            if (candidate.isPlaceholder) continue;
+            if (normalizeProvince(candidate.province) !== targetProvince) continue;
+            if (normalizeText(candidate.description) === normReqText) {
+              matchedCase = candidate;
+              break;
+            }
+          }
+        }
+      }
+
+      if (matchedCase) {
+        console.log(`[DEMO CACHE] hit: ${matchedCase.caseId}`);
+        return res.json({
+          sections: matchedCase.citedCards.map((c) => ({
+            id: c.chunkId || '',
+            act: c.act,
+            section: c.section,
+            title: c.title,
+            snippet: c.snippet,
+            sourceUrl: c.sourceUrl,
+            jurisdiction: c.jurisdiction,
+            lastVerified: c.lastVerified,
+            verifiedBy: c.verifiedBy,
+            isPlaceholder: c.isPlaceholder,
+          })),
+          citedCards: matchedCase.citedCards,
+          isFallback: false,
+          isDemoCached: true,
+          disclaimer: DISCLAIMER,
+        });
+      }
+    }
+
+    // 2. Query Writer: from redacted classification labels and key facts produce 2 to 3 short search queries
+    let searchQueries: string[] = Array.isArray(queries) && queries.length > 0 ? queries : [];
+    if (
+      searchQueries.length === 0 ||
+      (Array.isArray(classificationLabels) && classificationLabels.length > 0)
+    ) {
+      const derived = await writeSearchQueries({
+        labels: Array.isArray(classificationLabels) && classificationLabels.length > 0
+          ? classificationLabels
+          : searchQueries,
+        keyFacts: caseFacts || '',
+      });
+      if (derived && derived.length > 0) {
+        searchQueries = derived;
+      }
+    }
+
+    // 3. Hybrid Retrieval with Province Filter
+    const sections = await retrieveSections(searchQueries, province);
+
+    // 6. No-answer rule: if nothing passes the threshold show "No matching section found. Please consult a lawyer."
+    if (sections.length === 0) {
+      return res.json({
+        sections: [],
+        citedCards: [],
+        message: 'No matching section found. Please consult a lawyer.',
+        disclaimer: DISCLAIMER,
+        isFallback: false,
+      });
+    }
+
+    // 4. Grounded Explanation & 5. Citation Verifier
+    const citedCards = await explainSections(caseFacts || '', sections, language);
+
+    return res.json({
+      sections,
+      citedCards,
+      disclaimer: DISCLAIMER,
+      isFallback: false,
+    });
   } catch (err: any) {
-    console.error('Legal Route error:', err);
+    console.warn('Legal Route error, attempting demo cache or fallback:', err);
+    const demoCache = getDemoCaseCache();
+    if (demoCache) {
+      return res.json({
+        sections: demoCache.citedCards.map((c) => ({
+          id: c.chunkId || '',
+          act: c.act,
+          section: c.section,
+          title: c.title,
+          snippet: c.snippet,
+          sourceUrl: c.sourceUrl,
+          jurisdiction: c.jurisdiction,
+          lastVerified: c.lastVerified,
+          verifiedBy: c.verifiedBy,
+          isPlaceholder: c.isPlaceholder,
+        })),
+        citedCards: demoCache.citedCards,
+        isFallback: true,
+        isDemoCached: true,
+        disclaimer: DISCLAIMER,
+      });
+    }
     return res.status(500).json({ error: err.message || 'Legal guidance retrieval failed' });
   }
-});
+};
+
+apiRouter.post('/ai/legal', handleLegalRetrieval);
+apiRouter.post('/legal', handleLegalRetrieval);
+
+// 8. POST /api/legal/ask & /api/ai/legal/ask: Free-form legal question answered ONLY from retrieved chunks
+const handleLegalAsk = async (req: Request, res: Response) => {
+  try {
+    const { question, province, language } = req.body || {};
+    const result = await askLegalQuestion({
+      question: question || '',
+      province,
+      language: language === 'ur' ? 'ur' : 'en',
+    });
+    return res.json(result);
+  } catch (err: any) {
+    console.error('Ask Legal error:', err);
+    return res.status(500).json({
+      answer: 'An error occurred while retrieving legal information. Please consult a lawyer.',
+      citedCards: [],
+      error: err.message || 'Failed to answer legal question',
+      disclaimer: 'Information and draft only, not legal advice.',
+    });
+  }
+};
+
+apiRouter.post('/legal/ask', handleLegalAsk);
+apiRouter.post('/ai/legal/ask', handleLegalAsk);
 
 // 8. Formal Complaint Application Draft
 apiRouter.post('/ai/complaint', async (req: Request, res: Response) => {

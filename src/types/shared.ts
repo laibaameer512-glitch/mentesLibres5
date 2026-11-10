@@ -22,6 +22,26 @@ export interface CitedLegalCard {
   sourceUrl: string;
   isPlaceholder: boolean;
   relevanceReason: string;
+  chunkId?: string;
+  jurisdiction?: string;
+  lastVerified?: string;
+  verifiedBy?: string;
+  score?: number;
+}
+
+export interface LegalSection {
+  id: string;
+  act: string;
+  section: string;
+  title: string;
+  snippet: string;
+  category?: string;
+  sourceUrl: string;
+  isPlaceholder: boolean;
+  jurisdiction?: string;
+  lastVerified?: string;
+  verifiedBy?: string;
+  score?: number;
 }
 
 export type AuthorityType =

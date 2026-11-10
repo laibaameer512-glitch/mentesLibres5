@@ -75,6 +75,17 @@ export interface ComplaintDraftResult {
   isFallback?: boolean;
 }
 
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms = 12000,
+  msg = 'Operation timed out'
+): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(msg)), ms)),
+  ]);
+}
+
 export async function generateComplaintDraft(params: {
   authority: AuthorityType;
   language: 'en' | 'ur';
@@ -107,8 +118,25 @@ export async function generateComplaintDraft(params: {
     'کسی بھی قسم کی انتقامی کارروائی یا ادارہ جاتی نقصان کے خلاف فوری تحفظ۔',
   ];
 
+  // 9. Complaint generator: cite ONLY verified cards (act and section) and leave out any section the user removed
+  const verifiedCitations = (citedSections || [])
+    .filter((s) => s.act && s.section)
+    .map((s) => `• ${s.act} (${s.section}): ${s.title}`);
+
+  const citationsPromptNotice =
+    verifiedCitations.length > 0
+      ? `VERIFIED LEGAL CITATIONS TO INCLUDE (Cite ONLY these verified provisions; leave out any section not in this list):
+${verifiedCitations.join('\n')}`
+      : `LEGAL CITATIONS: The complainant did not select any statutory sections. Do NOT invent or cite any act or section.`;
+
   if (!hasApiKey || !summaryFacts || summaryFacts.trim().length < 5) {
-    return buildFallbackDraft(auth, language, citedSections, defaultEvidenceIndex, isUrdu ? defaultReliefUr : defaultReliefEn);
+    return buildFallbackDraft(
+      auth,
+      language,
+      citedSections,
+      defaultEvidenceIndex,
+      isUrdu ? defaultReliefUr : defaultReliefEn
+    );
   }
 
   try {
@@ -118,6 +146,7 @@ export async function generateComplaintDraft(params: {
 خلاصہ حقائق: ${summaryFacts}
 واقعات کی ترتیب: ${JSON.stringify(timelineEvents.slice(0, 10))}
 شواہد انڈیکس: ${JSON.stringify(defaultEvidenceIndex)}
+${citationsPromptNotice}
 
 براہ کرم مکمل شکایت کا مسودہ باوقار، قانونی اور واضح اردو میں تیار کریں جس میں درج ذیل حصے شامل ہوں:
 1. عنوان (موضوع)
@@ -125,7 +154,7 @@ export async function generateComplaintDraft(params: {
 3. مستغیثہ (مدعیہ کا نام: [مدعیہ / صیغہ راز])
 4. ملزم کے دستیاب کوائف
 5. واقعات کی مکمل تفصیل (Chronological Facts)
-6. قانونی حوالہ جات (صرف وضاحتی نوٹس)
+6. قانونی حوالہ جات (صرف اوپر دی گئی تصدیق شدہ دفعات کا ذکر کریں؛ اگر کوئی نہیں تو کوئی فرضی دفعہ نہ بنائیں)
 7. مطلوبہ داد رسی (Relief Requested)
 8. منسلک شواہد کی فہرست (Annexures)
 
@@ -135,6 +164,10 @@ Authority: ${auth.titleEn} (${auth.recipientDesignationEn})
 Facts Summary: ${summaryFacts}
 Key Timeline: ${JSON.stringify(timelineEvents.slice(0, 10))}
 Evidence Index: ${JSON.stringify(defaultEvidenceIndex)}
+${citationsPromptNotice}
+
+CRITICAL CITATION RULE:
+Cite ONLY the verified provisions provided above (act and section). Do NOT invent, assume, or cite any other statutory section or law. If none are provided, state that statutory grounds are reserved for advocate representation.
 
 Draft a complete, highly structured, and formal complaint containing:
 1. Subject Header
@@ -142,16 +175,20 @@ Draft a complete, highly structured, and formal complaint containing:
 3. Complainant Placeholder: [Complainant Name / Redacted for Privacy]
 4. Accused Identifiers & Contact Details
 5. Chronological Statement of Facts & Intimidation
-6. Referenced Legal Categories (Notice: educational draft sections)
+6. Referenced Legal Categories (strictly using the verified sections above)
 7. Specific Relief Requested (immediate inquiry, restraining directives, data preservation)
 8. Evidence Index (Annexure list)
 
 Maintain a solemn, objective tone suitable for official submission.`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-    });
+    const response = await withTimeout(
+      ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: prompt,
+      }),
+      12000,
+      'generateComplaintDraft call timed out'
+    );
 
     const fullDraft = response.text?.trim() || '';
 
@@ -186,7 +223,17 @@ function buildFallbackDraft(
 ): ComplaintDraftResult {
   const isUrdu = language === 'ur';
 
+  // Cite ONLY verified cards (act and section); leave out any section the user removed
+  const verifiedCitations = (citedSections || [])
+    .filter((s) => s.act && s.section)
+    .map((s) => `• ${s.act} (${s.section}): ${s.title}`);
+
   if (isUrdu) {
+    const legalNoticeUr =
+      verifiedCitations.length > 0
+        ? `\nقانونی حوالہ جات (تصدیق شدہ دفعات):\n${verifiedCitations.join('\n')}\n`
+        : '';
+
     const urduDraft = `بخدمت: ${auth.recipientDesignationUr}
 موضوع: باضابطہ شکایت برائے کارروائی انسدادِ غیر قانونی ہراسانی، بلیک میلنگ و بلیک میلنگ دھمکیاں
 
@@ -197,7 +244,7 @@ function buildFallbackDraft(
 1. ملزم کی جانب سے واٹس ایپ اور کالز کے ذریعے بلا اجازت مسلسل پیغامات اور کالز کی گئیں۔
 2. سائلہ کو مجبور کیا گیا کہ وہ غیر قانونی مطالبات تسلیم کرے ورنہ نجی معلومات اور تصاویر پھیلائی جائیں گی۔
 3. سائلہ کے واضح انکار کے باوجود ملزم نے 24 گھنٹے کا الٹی میٹم دیا اور خوف و ہراس پھیلانے کی کوشش کی۔
-
+${legalNoticeUr}
 داد رسی کی استدعا:
 ${reliefList.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
@@ -216,7 +263,7 @@ ${evidenceIndex.join('\n')}
       complainantPlaceholder: '[مدعیہ / صیغہ راز]',
       accusedIdentifiers: '[PHONE_1] / ڈیجیٹل اکاونٹ',
       chronologicalFacts: 'مسلسل غیر مطلوبہ پیغامات اور نجی میڈیا جاری کرنے کی دھمکیاں۔',
-      citedSections,
+      citedSections: citedSections.filter((s) => s.act && s.section),
       reliefRequested: reliefList,
       evidenceIndex,
       fullDraftText: urduDraft,
@@ -224,6 +271,13 @@ ${evidenceIndex.join('\n')}
       isFallback: true,
     };
   }
+
+  const legalNoticeEn =
+    verifiedCitations.length > 0
+      ? `LEGAL NOTICE & RELEVANCE (VERIFIED STATUTORY PROVISIONS):
+${verifiedCitations.join('\n')}`
+      : `LEGAL NOTICE & RELEVANCE:
+[No specific statutory sections cited in this draft]`;
 
   const enDraft = `To:
 ${auth.recipientDesignationEn}
@@ -239,8 +293,7 @@ STATEMENT OF FACTS:
 2. The accused subsequently issued an explicit extortion ultimatum (threatening to disseminate confidential material and private photographs unless non-consensual demands were met within a 24-hour window).
 3. The complainant has preserved all digital chat records, time-stamped screenshots, and voice recordings demonstrating the coercive pattern.
 
-LEGAL NOTICE & RELEVANCE (PRELIMINARY EDUCATIONAL CITATION):
-${citedSections.map((s) => `• ${s.act} (${s.section}): ${s.title}`).join('\n')}
+${legalNoticeEn}
 
 RELIEF PRAYED FOR:
 ${reliefList.map((r, i) => `${i + 1}. ${r}`).join('\n')}
@@ -260,7 +313,7 @@ Date: ${new Date().toLocaleDateString('en-GB')}`;
     complainantPlaceholder: '[Complainant Name - Redacted for Privacy]',
     accusedIdentifiers: '[PHONE_1] and associated profiles',
     chronologicalFacts: 'Persistent intimidation, 24h extortion ultimatum, threats to distribute private media.',
-    citedSections,
+    citedSections: citedSections.filter((s) => s.act && s.section),
     reliefRequested: reliefList,
     evidenceIndex,
     fullDraftText: enDraft,

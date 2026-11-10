@@ -1,0 +1,64 @@
+{
+  "caseId": "case-demo-104",
+  "disclaimer": "Information and draft only, not legal advice.",
+  "isPlaceholder": true,
+  "citedCards": [
+    {
+      "chunkId": "digital-safety-harassment-act-sample-draft-2024-14-b",
+      "act": "Digital Safety & Harassment Act (Sample Draft)",
+      "section": "Section 14-B",
+      "title": "Coercion, Blackmail & Digital Extortion (PLACEHOLDER)",
+      "snippet": "[PLACEHOLDER - REPLACE WITH VERIFIED TEXT] Covers threatening to release sensitive private media or personal information to demand money, favor, or compliance. Anyone who coerces or blackmails another individual by threatening publication of private images or communications commits an offense under this section.",
+      "plainExplanation": "This section covers threats to publish private photographs or sensitive communications to compel someone to give favorable testimony or yield to non-consensual demands.",
+      "relevanceReason": "Direct match for the recorded 24-hour ultimatum threatening to disseminate confidential photos to the department head.",
+      "sourceUrl": "https://example.gov.pk/legal/placeholder-sec14b",
+      "jurisdiction": "federal",
+      "lastVerified": "2024-01-15",
+      "verifiedBy": "Legal Aid Clinic",
+      "isPlaceholder": true
+    },
+    {
+      "chunkId": "electronic-communications-protection-framework-sample-draft-2024-10-a",
+      "act": "Electronic Communications Protection Framework (Sample Draft)",
+      "section": "Section 10-A",
+      "title": "Unauthorized Surveillance and Cyber-Stalking (PLACEHOLDER)",
+      "snippet": "[PLACEHOLDER - REPLACE WITH VERIFIED TEXT] Pertains to persistent electronic stalking, tracking without consent, or repeated unwelcome communications causing distress or alarm. Using multiple numbers or accounts to bypass blocks and intimidate a victim constitutes prohibited cyber-stalking.",
+      "plainExplanation": "This law addresses repeated, unwelcome messages and calls across multiple phone numbers and social media accounts after being blocked.",
+      "relevanceReason": "Directly matches evidence of suspect contacting victim via alternative numbers and burner social profiles.",
+      "sourceUrl": "https://example.gov.pk/legal/placeholder-sec10a",
+      "jurisdiction": "federal",
+      "lastVerified": "2024-01-15",
+      "verifiedBy": "Legal Aid Clinic",
+      "isPlaceholder": true
+    },
+    {
+      "chunkId": "protection-against-harassment-at-institutions-framework-sample-draft-2024-4-c",
+      "act": "Protection against Harassment at Institutions Framework (Sample Draft)",
+      "section": "Section 4-C",
+      "title": "Hostile Environment & Institutional Intimidation (PLACEHOLDER)",
+      "snippet": "[PLACEHOLDER - REPLACE WITH VERIFIED TEXT] Prohibits unwelcome advances, quid-pro-quo academic or workplace pressure, or creating a hostile working or study environment. Leveraging educational standing, evaluation authority, or inquiry proceedings to compel compliance or silence complaints is strictly prohibited.",
+      "plainExplanation": "Addresses coercive pressure within academic or workplace settings, specifically using institutional power or inquiry committees to silence or threaten an individual.",
+      "relevanceReason": "Directly aligns with demands to alter inquiry committee statements regarding thesis presentations.",
+      "sourceUrl": "https://example.gov.pk/legal/placeholder-sec4c",
+      "jurisdiction": "federal",
+      "lastVerified": "2024-01-15",
+      "verifiedBy": "Legal Aid Clinic",
+      "isPlaceholder": true
+    },
+    {
+      "chunkId": "criminal-intimidation-defamation-provisions-sample-draft-2024-21-d",
+      "act": "Criminal Intimidation & Defamation Provisions (Sample Draft)",
+      "section": "Section 21-D",
+      "title": "Severe Threat of Harm and Coercive Intimidation (PLACEHOLDER)",
+      "snippet": "[PLACEHOLDER - REPLACE WITH VERIFIED TEXT] Transmission of explicit threats to bodily harm, reputation destruction, or family intimidation with intent to force wrongful submission. Threatening injury to reputation, family members, or life to compel an act against free will constitutes criminal intimidation.",
+      "plainExplanation": "Penalizes threatening reputation destruction or intimidating family members to force a person to do something against their will.",
+      "relevanceReason": "Directly matches documented threats targeting family contact numbers and public reputation.",
+      "sourceUrl": "https://example.gov.pk/legal/placeholder-sec21d",
+      "jurisdiction": "federal",
+      "lastVerified": "2024-01-15",
+      "verifiedBy": "Legal Aid Clinic",
+      "isPlaceholder": true
+    }
+  ]
+}
+

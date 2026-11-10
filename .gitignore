@@ -8,3 +8,7 @@ coverage/
 .env*
 !.env.example
 server/data/circleDb.json
+server/data/legal/*.index.json
+server/data/legal/legalIndex.json
+server/data/legalIndex.json
+*.index.json

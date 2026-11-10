@@ -3,7 +3,11 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
+const apiKey =
+  (process.env.GEMINI_API_KEYS ? process.env.GEMINI_API_KEYS.split(',')[0].trim() : '') ||
+  process.env.GEMINI_API_KEY ||
+  process.env.GOOGLE_API_KEY ||
+  '';
 
 export const hasApiKey = Boolean(apiKey && apiKey.trim().length > 5);
 

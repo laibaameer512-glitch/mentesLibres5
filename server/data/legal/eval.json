@@ -1,0 +1,251 @@
+[
+  {
+    "id": "eval-blackmail-01",
+    "description": "Someone is threatening to share my private photos with my family and friends unless I pay them money. They contacted me through WhatsApp.",
+    "province": "federal",
+    "expectedChunkIds": [
+      "pakistan-penal-code-ppc-1860-1860-383",
+      "pakistan-penal-code-ppc-1860-1860-384"
+    ],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-blackmail-02",
+    "description": "میرے سابق شوہر نے میری تصاویر لیکر مجھے دھمکی دی ہے کہ اگر میں طلاق کے مقدمے سے پیچھے نہ ہٹی تو وہ یہ تصاویر سوشل میڈیا پر ڈال دے گا۔",
+    "province": "federal",
+    "expectedChunkIds": [
+      "pakistan-penal-code-ppc-1860-1860-383",
+      "pakistan-penal-code-ppc-1860-1860-384",
+      "prevention-of-electronic-crimes-act-2016-2016-21-sub-1"
+    ],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-cyberstalking-01",
+    "description": "My ex-boyfriend keeps making new social media accounts to contact me after I blocked him. He messages me dozens of times a day and shows up wherever I post my location.",
+    "province": "federal",
+    "expectedChunkIds": [
+      "prevention-of-electronic-crimes-act-2016-2016-24-sub-1",
+      "prevention-of-electronic-crimes-act-2016-2016-24-sub-2"
+    ],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-cyberstalking-02",
+    "description": "A man from my office has been following me online, tracking my posts, and sending me threatening messages on Instagram even after I told him to stop.",
+    "province": "federal",
+    "expectedChunkIds": [
+      "prevention-of-electronic-crimes-act-2016-2016-24-sub-1",
+      "prevention-of-electronic-crimes-act-2016-2016-24-sub-2"
+    ],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-nonconsensual-images-01",
+    "description": "My ex-partner posted intimate photos of me on a website without my permission. These are real photos taken with my consent when we were together but I never agreed to share them publicly.",
+    "province": "federal",
+    "expectedChunkIds": [
+      "prevention-of-electronic-crimes-act-2016-2016-21-sub-1"
+    ],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-nonconsensual-images-02",
+    "description": "کسی نے میری تصویر کو میری اجازت کے بغیر ایک فحش ویب سائٹ پر ڈال دیا۔ میں نہیں جانتی یہ کس نے کیا لیکن تصویر میری ہے۔",
+    "province": "federal",
+    "expectedChunkIds": [
+      "prevention-of-electronic-crimes-act-2016-2016-21-sub-1"
+    ],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-defamation-01",
+    "description": "Someone is spreading false rumors about me on Facebook, saying I am involved in criminal activity. These claims are completely untrue and are destroying my reputation.",
+    "province": "federal",
+    "expectedChunkIds": [
+      "pakistan-penal-code-ppc-1860-1860-499",
+      "pakistan-penal-code-ppc-1860-1860-500",
+      "prevention-of-electronic-crimes-act-2016-2016-20"
+    ],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-defamation-02",
+    "description": "My neighbor has been going around the community saying I did something shameful that never happened. He is damaging my reputation with these lies.",
+    "province": "federal",
+    "expectedChunkIds": [
+      "pakistan-penal-code-ppc-1860-1860-499",
+      "pakistan-penal-code-ppc-1860-1860-500"
+    ],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-criminal-intimidation-01",
+    "description": "A man threatened me saying that if I report him to the police he will harm me and my children. I am very scared and do not know what to do.",
+    "province": "federal",
+    "expectedChunkIds": [
+      "pakistan-penal-code-ppc-1860-1860-503",
+      "pakistan-penal-code-ppc-1860-1860-506"
+    ],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-criminal-intimidation-02",
+    "description": "میرے سابق ملازم نے مجھے دھمکی دی کہ اگر میں نے اسے نوکری سے نہیں نکالا تو وہ میرے گھر والوں کو نقصان پہنچائے گا۔",
+    "province": "federal",
+    "expectedChunkIds": [
+      "pakistan-penal-code-ppc-1860-1860-503",
+      "pakistan-penal-code-ppc-1860-1860-506"
+    ],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-modesty-01",
+    "description": "A man at my workplace keeps making vulgar comments about my appearance and once touched me inappropriately. I feel uncomfortable and scared coming to work.",
+    "province": "federal",
+    "expectedChunkIds": [
+      "pakistan-penal-code-ppc-1860-1860-509"
+    ],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-fir-process-01",
+    "description": "I want to report a crime to the police but I do not know how to file an FIR. The police at the station are not cooperating. What is the process?",
+    "province": "federal",
+    "expectedChunkIds": [
+      "code-of-criminal-procedure-crpc-1898-1898-154"
+    ],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-workplace-harassment-01",
+    "description": "My manager at work keeps asking me to meet him alone after hours and hints that my job depends on it. I tried to report it internally but nothing happened.",
+    "province": "federal",
+    "expectedChunkIds": [
+      "protection-against-harassment-of-women-at-the-workplace-act-2010-2010-3",
+      "protection-against-harassment-of-women-at-the-workplace-act-2010-2010-4-sub-1",
+      "protection-against-harassment-of-women-at-the-workplace-act-2010-2010-7"
+    ],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-workplace-ombudsperson-01",
+    "description": "My company refused to investigate my harassment complaint against a senior employee. How can I escalate this to the harassment ombudsperson?",
+    "province": "federal",
+    "expectedChunkIds": [
+      "protection-against-harassment-of-women-at-the-workplace-act-2010-2010-7",
+      "protection-against-harassment-of-women-at-the-workplace-act-2010-2010-8-sub-1"
+    ],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-punjab-dv-complaint-01",
+    "description": "میں پنجاب میں رہتی ہوں اور میرا شوہر مجھے مارتا ہے۔ میں عدالت سے تحفظ کا حکم لینا چاہتی ہوں۔ کیا میں خود یہ شکایت درج کروا سکتی ہوں؟",
+    "province": "punjab",
+    "expectedChunkIds": [
+      "the-punjab-protection-of-women-against-violence-act-2016-2016-4-sub-1",
+      "the-punjab-protection-of-women-against-violence-act-2016-2016-7-sub-1"
+    ],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-punjab-dv-shelter-01",
+    "description": "I live in Punjab and need to leave my home because my husband is violent. Can the court order me to stay in the house or move him out? Is there a shelter I can go to?",
+    "province": "punjab",
+    "expectedChunkIds": [
+      "the-punjab-protection-of-women-against-violence-act-2016-2016-5",
+      "the-punjab-protection-of-women-against-violence-act-2016-2016-8-sub-1",
+      "the-punjab-protection-of-women-against-violence-act-2016-2016-13-sub-1"
+    ],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-punjab-protection-order-01",
+    "description": "My husband threatens to hurt me every day. I am in Punjab and I need an emergency court order to stop him from coming near me right away.",
+    "province": "punjab",
+    "expectedChunkIds": [
+      "the-punjab-protection-of-women-against-violence-act-2016-2016-6",
+      "the-punjab-protection-of-women-against-violence-act-2016-2016-7-sub-1"
+    ],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-noans-dowry-01",
+    "description": "My in-laws are demanding dowry and harassing me and my family for not bringing enough items. What law protects me against dowry demands?",
+    "province": "federal",
+    "expectedChunkIds": [],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-noans-custody-01",
+    "description": "My husband took my children and refuses to let me see them. I want to know my custody rights and how to get a court order to see my children.",
+    "province": "federal",
+    "expectedChunkIds": [],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-noans-property-01",
+    "description": "My landlord has thrown me out of the rented house without any notice and kept my belongings. What are my rights as a tenant?",
+    "province": "federal",
+    "expectedChunkIds": [],
+    "reviewedBy": "law student",
+    "reviewedOn": "2026-11-10"
+  },
+  {
+    "id": "eval-province-filter-sindh-01",
+    "description": "میں پنجاب میں رہتی ہوں اور میرا شوہر مجھے مارتا ہے۔ میں عدالت سے تحفظ کا حکم لینا چاہتی ہوں۔ کیا میں خود یہ شکایت درج کروا سکتی ہوں؟",
+    "province": "sindh",
+    "expectedChunkIds": [],
+    "forbiddenActPrefix": "the-punjab-protection-of-women",
+    "draftedBy": "AI, needs law student review",
+    "_note": "Province-filter test: same description as eval-punjab-dv-complaint-01 but province=sindh. Punjab Act chunks must NOT appear. Federal chunks are allowed. Passes if no retrieved chunk id starts with forbiddenActPrefix."
+  },
+  {
+    "id": "eval-observe-vague-en-01",
+    "description": "I need help with something that happened to me.",
+    "province": "federal",
+    "expectedChunkIds": [],
+    "observeOnly": true,
+    "draftedBy": "AI, needs law student review",
+    "_note": "Observe-only vague scenario (English). Not counted in any metric; retrieval is printed for inspection."
+  },
+  {
+    "id": "eval-observe-vague-ur-01",
+    "description": "مجھے کچھ مسئلہ ہے اور میں مدد چاہتی ہوں۔",
+    "province": "federal",
+    "expectedChunkIds": [],
+    "observeOnly": true,
+    "draftedBy": "AI, needs law student review",
+    "_note": "Observe-only vague scenario (Urdu). Not counted in any metric; retrieval is printed for inspection."
+  },
+  {
+    "id": "eval-blackmail-roman-urdu-01",
+    "description": "Koi mujhe dhamki de raha hai ke agar maine paise nahi diye to meri private photos mere ghar walon aur doston ko bhej dega. Usne WhatsApp par contact kiya hai.",
+    "province": "federal",
+    "expectedChunkIds": [
+      "pakistan-penal-code-ppc-1860-1860-383",
+      "pakistan-penal-code-ppc-1860-1860-384"
+    ],
+    "draftedBy": "AI, needs law student review",
+    "_note": "Roman Urdu equivalent of eval-blackmail-01. Expected chunk ids copied from that scenario."
+  }
+]
