@@ -36,3 +36,376 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.4);
 }
+
+/* ═════════════════════════════════════════════════════════════════════════ */
+/* SAKHI VAULT — GEN Z SOPHISTICATED FEMININE COLOR THEME                    */
+/* Palette:                                                                 */
+/*   - Cherry Pink: #FF5C8A                                                 */
+/*   - Buttercream / Warm Off-White: #FFE5BD                                */
+/*   - Soft Blush Pink: #FFD9E8                                             */
+/*   - Deep Plum / Dark Charcoal: #291E2A                                   */
+/*   - Muted Rose: #C97891                                                  */
+/*   - Soft Neutral: #FFF8F5                                                */
+/* ═════════════════════════════════════════════════════════════════════════ */
+
+.sakhi-vault-theme {
+  /* ── 1. Root Theme Palette Variables ─────────────────────────────────── */
+  --sakhi-cherry: #FF5C8A;
+  --sakhi-cherry-hover: #FF759D;
+  --sakhi-cherry-active: #E64573;
+  --sakhi-buttercream: #FFE5BD;
+  --sakhi-blush: #FFD9E8;
+  --sakhi-blush-light: #FFF2F6;
+  --sakhi-blush-card: #FFFFFF;
+  --sakhi-plum: #291E2A;
+  --sakhi-plum-dark: #1D151E;
+  --sakhi-plum-surface: #362438;
+  --sakhi-plum-text: #291E2A;
+  --sakhi-plum-subtext: #7E4D63;
+  --sakhi-muted-rose: #C97891;
+  --sakhi-muted-rose-light: #E8C2D0;
+  --sakhi-muted-rose-subtle: #F3D9E2;
+  --sakhi-neutral: #FFF8F5;
+
+  /* ── 2. Tailwind Core Color Tokens Overrides ─────────────────────────── */
+  --color-slate-950: var(--sakhi-neutral);
+  --color-slate-900: var(--sakhi-blush-card);
+  --color-slate-800: var(--sakhi-blush);
+  --color-slate-700: var(--sakhi-muted-rose-light);
+  --color-slate-600: var(--sakhi-muted-rose);
+  --color-slate-500: var(--sakhi-plum-subtext);
+  --color-slate-400: #7E4D63;
+  --color-slate-300: #543243;
+  --color-slate-200: var(--sakhi-plum-text);
+  --color-slate-100: var(--sakhi-plum-text);
+  --color-white: var(--sakhi-plum-text);
+
+  /* Primary Accent: Cherry Pink */
+  --color-teal-600: var(--sakhi-cherry);
+  --color-teal-500: var(--sakhi-cherry-hover);
+  --color-teal-700: var(--sakhi-cherry-active);
+  --color-teal-400: var(--sakhi-cherry);
+  --color-teal-300: var(--sakhi-cherry);
+  --color-teal-200: var(--sakhi-muted-rose);
+  --color-teal-100: var(--sakhi-plum-text);
+  --color-teal-800: var(--sakhi-muted-rose);
+  --color-teal-900: var(--sakhi-buttercream);
+  --color-teal-950: var(--sakhi-blush);
+
+  /* Secondary Accents */
+  --color-purple-400: var(--sakhi-muted-rose);
+  --color-purple-950: var(--sakhi-blush);
+  --color-blue-400: var(--sakhi-muted-rose);
+  --color-indigo-400: var(--sakhi-cherry);
+
+  background-color: var(--sakhi-neutral);
+  color: var(--sakhi-plum-text);
+}
+
+/* ── 3. Page & Layout Containers ───────────────────────────────────────── */
+.sakhi-vault-theme .bg-slate-950 {
+  background-color: #FFF8F5 !important;
+}
+
+.sakhi-vault-theme .min-h-screen.bg-slate-950 {
+  background-color: #FFF8F5 !important;
+  color: #291E2A !important;
+}
+
+/* Top bar (Sticky Header in VaultDashboard) */
+.sakhi-vault-theme header.bg-slate-900\/90 {
+  background-color: rgba(255, 248, 245, 0.95) !important;
+  border-bottom-color: #E8C2D0 !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+/* Panic Bar (Anchored at top in Deep Plum for sophisticated contrast) */
+.sakhi-vault-theme [class*="bg-slate-950/80"][class*="border-b"] {
+  background-color: #291E2A !important;
+  border-bottom-color: #3D2B3F !important;
+  color: #FFE5BD !important;
+}
+
+.sakhi-vault-theme [class*="bg-slate-950/80"][class*="border-b"] span {
+  color: #FFE5BD !important;
+}
+
+.sakhi-vault-theme [class*="bg-slate-950/80"][class*="border-b"] span.text-slate-500 {
+  color: #FFD9E8 !important;
+}
+
+.sakhi-vault-theme [class*="bg-slate-950/80"][class*="border-b"] button[title="Tap to instant lock"] {
+  background-color: #FF5C8A !important;
+}
+
+/* Bottom Navigation Bar (Deep Plum frame with Cherry Pink active indicators) */
+.sakhi-vault-theme nav[class*="fixed bottom-0"] {
+  background-color: #291E2A !important;
+  border-top-color: #3D2B3F !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+.sakhi-vault-theme nav[class*="fixed bottom-0"] button {
+  color: #FFD9E8 !important;
+}
+
+.sakhi-vault-theme nav[class*="fixed bottom-0"] button.text-teal-400,
+.sakhi-vault-theme nav[class*="fixed bottom-0"] button[class*="text-teal"] {
+  color: #FF5C8A !important;
+}
+
+.sakhi-vault-theme nav[class*="fixed bottom-0"] button span[class*="bg-teal-500"] {
+  background-color: #FF5C8A !important;
+  color: #FFFFFF !important;
+}
+
+/* ── 4. Cards & Content Surfaces ───────────────────────────────────────── */
+.sakhi-vault-theme .bg-slate-900,
+.sakhi-vault-theme .bg-slate-900\/90,
+.sakhi-vault-theme .bg-slate-900\/95,
+.sakhi-vault-theme .bg-slate-900\/80 {
+  background-color: #FFFFFF !important;
+  border-color: #E8C2D0 !important;
+  box-shadow: 0 4px 16px rgba(41, 30, 42, 0.04) !important;
+}
+
+/* Secondary surface cards (Card 2 Add Evidence, category items, pills) */
+.sakhi-vault-theme .bg-slate-800,
+.sakhi-vault-theme .bg-slate-800\/90,
+.sakhi-vault-theme .bg-slate-800\/80 {
+  background-color: #FFD9E8 !important;
+  border-color: #C97891 !important;
+  color: #291E2A !important;
+}
+
+.sakhi-vault-theme .hover\:bg-slate-800:hover {
+  background-color: #FFD9E8 !important;
+}
+
+.sakhi-vault-theme .hover\:bg-slate-700:hover {
+  background-color: #F8C8DB !important;
+}
+
+/* Subtle inner sub-containers inside cards */
+.sakhi-vault-theme .bg-slate-950\/70,
+.sakhi-vault-theme .bg-slate-950\/60,
+.sakhi-vault-theme .bg-slate-950\/80 {
+  background-color: #FFF2F6 !important;
+  border-color: #F3D9E2 !important;
+}
+
+/* ── 5. Borders & Dividers ─────────────────────────────────────────────── */
+.sakhi-vault-theme .border-slate-800,
+.sakhi-vault-theme .border-slate-800\/80,
+.sakhi-vault-theme .border-slate-800\/60,
+.sakhi-vault-theme .border-slate-700,
+.sakhi-vault-theme .border-slate-700\/80,
+.sakhi-vault-theme .border-slate-700\/60,
+.sakhi-vault-theme .border-slate-700\/50 {
+  border-color: #E8C2D0 !important;
+}
+
+.sakhi-vault-theme .border-teal-700,
+.sakhi-vault-theme .border-teal-800,
+.sakhi-vault-theme .border-teal-700\/80,
+.sakhi-vault-theme .border-teal-700\/60,
+.sakhi-vault-theme .border-teal-700\/50,
+.sakhi-vault-theme .border-teal-800\/50 {
+  border-color: #C97891 !important;
+}
+
+.sakhi-vault-theme .border-teal-500 {
+  border-color: #FF5C8A !important;
+}
+
+/* ── 6. Typography & Text Hierarchy ────────────────────────────────────── */
+.sakhi-vault-theme .text-white {
+  color: #291E2A !important;
+}
+
+.sakhi-vault-theme .text-slate-100 {
+  color: #291E2A !important;
+}
+
+.sakhi-vault-theme .text-slate-200 {
+  color: #382436 !important;
+}
+
+.sakhi-vault-theme .text-slate-300 {
+  color: #4A2E44 !important;
+}
+
+.sakhi-vault-theme .text-slate-400 {
+  color: #7E4D63 !important;
+}
+
+.sakhi-vault-theme .text-slate-500 {
+  color: #9E6B80 !important;
+}
+
+.sakhi-vault-theme .text-slate-600 {
+  color: #B58A9C !important;
+}
+
+.sakhi-vault-theme .text-teal-400,
+.sakhi-vault-theme .text-teal-300 {
+  color: #FF5C8A !important;
+}
+
+.sakhi-vault-theme .text-teal-200 {
+  color: #291E2A !important;
+}
+
+.sakhi-vault-theme .text-purple-400 {
+  color: #C97891 !important;
+}
+
+.sakhi-vault-theme .text-blue-400 {
+  color: #C97891 !important;
+}
+
+/* ── 7. Primary Action Buttons (Cherry Pink #FF5C8A) ───────────────────── */
+.sakhi-vault-theme .bg-teal-600,
+.sakhi-vault-theme .bg-teal-700,
+.sakhi-vault-theme button.bg-teal-600,
+.sakhi-vault-theme button.bg-teal-700,
+.sakhi-vault-theme a.bg-teal-600 {
+  background-color: #FF5C8A !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 4px 14px rgba(255, 92, 138, 0.3) !important;
+}
+
+.sakhi-vault-theme .bg-teal-600 *,
+.sakhi-vault-theme .bg-teal-700 *,
+.sakhi-vault-theme button.bg-teal-600 *,
+.sakhi-vault-theme button.bg-teal-700 *,
+.sakhi-vault-theme a.bg-teal-600 * {
+  color: #FFFFFF !important;
+}
+
+.sakhi-vault-theme .bg-teal-600:hover,
+.sakhi-vault-theme .bg-teal-700:hover,
+.sakhi-vault-theme .hover\:bg-teal-500:hover,
+.sakhi-vault-theme .hover\:bg-teal-600:hover {
+  background-color: #FF759D !important;
+}
+
+.sakhi-vault-theme .bg-teal-600:active,
+.sakhi-vault-theme .bg-teal-700:active,
+.sakhi-vault-theme .active\:bg-teal-700:active,
+.sakhi-vault-theme .active\:bg-teal-800:active {
+  background-color: #E64573 !important;
+}
+
+/* ── 8. Badges, Chips & Highlights ─────────────────────────────────────── */
+.sakhi-vault-theme .bg-teal-950,
+.sakhi-vault-theme .bg-teal-950\/40,
+.sakhi-vault-theme .bg-teal-950\/60,
+.sakhi-vault-theme .bg-teal-950\/80,
+.sakhi-vault-theme .bg-teal-900\/60 {
+  background-color: #FFE5BD !important;
+  border-color: #C97891 !important;
+}
+
+.sakhi-vault-theme .bg-teal-950 span,
+.sakhi-vault-theme .bg-teal-950 p {
+  color: #291E2A !important;
+}
+
+/* Category pills in Helplines & Decoy */
+.sakhi-vault-theme button[class*="bg-slate-900 border border-slate-800"] {
+  background-color: #FFF2F6 !important;
+  border-color: #E8C2D0 !important;
+  color: #7E4D63 !important;
+}
+
+.sakhi-vault-theme button[class*="bg-slate-900 border border-slate-800"]:hover {
+  background-color: #FFD9E8 !important;
+  color: #291E2A !important;
+}
+
+/* ── 9. Inputs, Textareas, Selects ─────────────────────────────────────── */
+.sakhi-vault-theme input,
+.sakhi-vault-theme select,
+.sakhi-vault-theme textarea {
+  background-color: #FFFFFF !important;
+  border-color: #E8C2D0 !important;
+  color: #291E2A !important;
+  caret-color: #FF5C8A !important;
+}
+
+.sakhi-vault-theme input::placeholder,
+.sakhi-vault-theme textarea::placeholder {
+  color: #A67C8F !important;
+}
+
+.sakhi-vault-theme input:focus,
+.sakhi-vault-theme select:focus,
+.sakhi-vault-theme textarea:focus {
+  border-color: #FF5C8A !important;
+  box-shadow: 0 0 0 2px rgba(255, 92, 138, 0.22) !important;
+}
+
+/* ── 10. Modals & Dialogs ──────────────────────────────────────────────── */
+.sakhi-vault-theme .bg-black\/80,
+.sakhi-vault-theme .bg-black\/85,
+.sakhi-vault-theme [class*="bg-black/"] {
+  background-color: rgba(41, 30, 42, 0.72) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+.sakhi-vault-theme .bg-slate-900.border.rounded-2xl {
+  background-color: #FFFFFF !important;
+  border-color: #E8C2D0 !important;
+  box-shadow: 0 24px 48px rgba(41, 30, 42, 0.16) !important;
+}
+
+/* ── 11. Danger & Delete Actions ───────────────────────────────────────── */
+.sakhi-vault-theme .bg-red-950\/30,
+.sakhi-vault-theme .bg-red-950\/50,
+.sakhi-vault-theme .bg-red-950\/60,
+.sakhi-vault-theme .bg-red-950\/70 {
+  background-color: #FFE8EE !important;
+  border-color: #FFA4B8 !important;
+}
+
+.sakhi-vault-theme .border-red-900\/50,
+.sakhi-vault-theme .border-red-800\/60,
+.sakhi-vault-theme .border-red-800\/70,
+.sakhi-vault-theme .border-red-800\/80 {
+  border-color: #FFA4B8 !important;
+}
+
+.sakhi-vault-theme .text-red-400,
+.sakhi-vault-theme .text-red-300,
+.sakhi-vault-theme .text-red-200 {
+  color: #D62854 !important;
+}
+
+.sakhi-vault-theme .bg-red-600,
+.sakhi-vault-theme button.bg-red-600 {
+  background-color: #E03058 !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 4px 14px rgba(224, 48, 88, 0.3) !important;
+}
+
+.sakhi-vault-theme .bg-red-600 *,
+.sakhi-vault-theme button.bg-red-600 * {
+  color: #FFFFFF !important;
+}
+
+.sakhi-vault-theme .bg-red-600:hover,
+.sakhi-vault-theme .hover\:bg-red-500:hover {
+  background-color: #EB476D !important;
+}
+
+/* ── 12. Vault Scrollbar ───────────────────────────────────────────────── */
+.sakhi-vault-theme::-webkit-scrollbar-thumb,
+.sakhi-vault-theme *::-webkit-scrollbar-thumb {
+  background: rgba(201, 120, 145, 0.3) !important;
+}
+
+.sakhi-vault-theme::-webkit-scrollbar-thumb:hover,
+.sakhi-vault-theme *::-webkit-scrollbar-thumb:hover {
+  background: rgba(201, 120, 145, 0.5) !important;
+}

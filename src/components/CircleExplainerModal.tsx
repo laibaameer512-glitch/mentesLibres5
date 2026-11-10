@@ -23,7 +23,7 @@ export const CircleExplainerModal: React.FC<CircleExplainerModalProps> = ({ onCl
           </div>
           <div>
             <h2 className="text-base font-bold text-white">How Sakhi Circle Works & Its Limits</h2>
-            <p className="text-xs text-teal-400">Cryptographic Anonymous Pattern Matching</p>
+            <p className="text-xs text-teal-400">Anonymous Pattern Matching</p>
           </div>
         </div>
 
@@ -38,7 +38,7 @@ export const CircleExplainerModal: React.FC<CircleExplainerModalProps> = ({ onCl
               Sakhi Circle solves a critical paradox: how can victims know if the same serial harasser or extortionist is targeting others, without exposing their identities, reading their chats, or maintaining a public registry?
             </p>
             <p className="text-slate-400">
-              Only canonical normalized codes (e.g. phone numbers or handles) are sent. The server instantly computes an irreversible HMAC-SHA256 hash using a server-side secret key, records only the scrambled hash and a device pseudonym, and immediately discards the raw number. Your messages, images, notes, and identity never leave this device.
+              Only standard codes (e.g. phone numbers or handles) are sent. The server instantly converts the number into a private code using a secure key, records only the scrambled code and a device pseudonym, and immediately discards the raw number. Your messages, images, notes, and identity never leave this device.
             </p>
           </section>
 
@@ -60,20 +60,20 @@ export const CircleExplainerModal: React.FC<CircleExplainerModalProps> = ({ onCl
           <section className="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 space-y-2">
             <h3 className="font-semibold text-white flex items-center gap-1.5 text-xs">
               <Cpu className="w-3.5 h-3.5 text-indigo-400" />
-              Production Roadmap: Verified Onboarding & PSI
+              Production Roadmap: Institutional Onboarding & Privacy Protection
             </h3>
             <p className="text-slate-300">
-              A production deployment beyond this hackathon architecture requires:
+              A production deployment beyond this research prototype requires:
             </p>
             <ul className="list-disc list-inside space-y-1 text-slate-400 pl-1">
               <li>
-                <strong className="text-slate-300">Private Set Intersection (PSI):</strong> Multi-party computation where matching occurs without even the server knowing which hashes collided.
+                <strong className="text-slate-300">Enhanced Privacy:</strong> Matching where comparison occurs without the server storing raw data.
               </li>
               <li>
-                <strong className="text-slate-300">Verified Institutional Onboarding:</strong> Integration with accredited crisis NGO caseworkers or digital notary keys to prevent Sybil attacks.
+                <strong className="text-slate-300">Institutional Onboarding:</strong> Integration with accredited crisis NGO caseworkers to prevent fake accounts.
               </li>
               <li>
-                <strong className="text-slate-300">Blind Signatures:</strong> Zero-knowledge anonymous credentials to decouple authentication from reporting.
+                <strong className="text-slate-300">Anonymous Credentials:</strong> Secure anonymous credentials to decouple authentication from reporting.
               </li>
             </ul>
           </section>
@@ -82,14 +82,14 @@ export const CircleExplainerModal: React.FC<CircleExplainerModalProps> = ({ onCl
           <section className="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 space-y-2">
             <h3 className="font-semibold text-white flex items-center gap-1.5 text-xs">
               <FileCheck2 className="w-3.5 h-3.5 text-teal-400" />
-              Explicit Technical & Operational Assumptions
+              Explicit Practical &amp; Operational Assumptions
             </h3>
             <ol className="list-decimal list-inside space-y-1.5 text-slate-400 pl-1">
               <li>
                 <strong className="text-slate-300">PTA SIM Registration:</strong> Assumes Pakistani cell numbers correspond to persistent identity SIMs under Pakistan's PTA DIRBS biometric framework.
               </li>
               <li>
-                <strong className="text-slate-300">Identifier Normalization:</strong> Assumes phone numbers (+92) and social handles can be reliably formatted to prevent unintentional hash divergence.
+                <strong className="text-slate-300">Consistent Number Format:</strong> Assumes phone numbers (+92) and social handles can be formatted consistently to prevent mismatches.
               </li>
               <li>
                 <strong className="text-slate-300">No False Coordination:</strong> Assumes reporting devices act independently without organized malicious collusion against arbitrary individuals.

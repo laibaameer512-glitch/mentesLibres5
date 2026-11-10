@@ -107,8 +107,14 @@ export default function App() {
     setMode('calculator');
   };
 
+  const isVaultActive = mode !== 'calculator' || currentPath === '/counselor';
+
   return (
-    <div className="min-h-screen bg-[#080b0f] text-slate-100">
+    <div
+      className={`min-h-screen transition-colors duration-300 ${
+        isVaultActive ? 'sakhi-vault-theme bg-[#FFF8F5] text-[#291E2A]' : 'bg-black text-white'
+      }`}
+    >
       {/* 0. Counselor Portal Route (/counselor) */}
       {currentPath === '/counselor' ? (
         <CircleCounselorPortal onReturnToApp={handleReturnFromCounselor} />

@@ -262,7 +262,7 @@ export const CircleCounselorPortal: React.FC<CircleCounselorPortalProps> = ({ on
               <span>Zero-Content Privacy Protocol</span>
             </div>
             <p className="text-slate-400 text-[11px] leading-relaxed">
-              Caseworkers cannot view names, plain phone numbers, messages, or victim identities. Only mathematical HMAC collisions (&ge;3 reports) are visible.
+              Caseworkers cannot view names, plain phone numbers, messages, or victim identities. Only pattern matches (&ge;3 reports) are visible.
             </p>
           </div>
 

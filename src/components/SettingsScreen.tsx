@@ -134,24 +134,24 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   // 5-Line Plain-Language Privacy Notice (English & Urdu matching reality)
   const privacyNoticeLines = [
     {
-      ur: '1. ڈیوائس پر محفوظگی: شواہد کا ریکارڈ، اسکرین شاٹس اور نوٹس آپ کے براؤزر میں کلائنٹ سائڈ AES-GCM 256-bit انکرپشن کے ساتھ محفوظ رہتے ہیں۔',
-      en: '1. Device Encryption: All evidence records, screenshots, and case notes remain encrypted on your device with client-side AES-GCM 256-bit cryptography.',
+      ur: '1. ڈیوائس پر محفوظگی: شواہد کا ریکارڈ، اسکرین شاٹس اور نوٹس آپ کے براؤزر میں مضبوط انکرپشن کے ساتھ محفوظ رہتے ہیں۔',
+      en: '1. Device Encryption: All evidence records, screenshots, and case notes remain safely encrypted on your device.',
     },
     {
-      ur: '2. میڈیا سے متن نکالنا: اسکرین شاٹس ہمارے سرور پر پروسیس ہوتے ہیں (OCR ہمارے سرور پر Tesseract کے ذریعے چلتا ہے) اور آواز کی ریکارڈنگز ٹرانسکرپشن کے لیے بھیجی جاتی ہیں؛ مزید تجزیے سے قبل فون نمبر، ای میل اور شناختی کارڈ نمبرز کلائنٹ پر خودکار طور پر چھپا دیے جاتے ہیں۔',
-      en: '2. Media Extraction: Screenshots are processed on our server (OCR runs on our server with Tesseract) and voice recordings are sent for transcription; Pakistani phone numbers, emails, and CNICs are redacted on the client before further AI analysis.',
+      ur: '2. میڈیا سے متن پڑھنا: اسکرین شاٹس اور آواز کی ریکارڈنگز کا متن سمجھنے کے لیے پروسیسنگ ہوتی ہے؛ مزید تجزیے سے قبل فون نمبر، ای میل اور شناختی کارڈ نمبرز خودکار طور پر چھپا دیے جاتے ہیں۔',
+      en: '2. Reading Media Text: Screenshots and voice recordings are processed to read text; phone numbers, emails, and personal IDs are automatically hidden before further analysis.',
     },
     {
-      ur: '3. AI تجزیہ: چھپائی گئی کیس کی تفصیلات اور قانونی تلاش کے سوالات جیمنی (Gemini) AI سروس کو بھیجے جاتے ہیں تاکہ تلاش کے سوالات تیار کیے جائیں، ایمبیڈنگز بنائی جائیں اور حاصل شدہ دفعات کی وضاحت کی جا سکے۔ قانون کا اصل متن خود ہمارے سرور پر محفوظ ہے۔',
-      en: '3. AI Analysis: Redacted case facts and legal search queries are sent to the Gemini AI service to write search queries, create embeddings and explain the retrieved sections. The law text itself is stored on our server.',
+      ur: '3. قانونی تجزیہ: کیس کی تفصیلات اور قانونی سوالات کی بنیاد پر متعلقہ قانونی دفعات کی نشاندہی کی جاتی ہے۔ قانون کا اصل متن ہمارے سرور پر محفوظ ہے۔',
+      en: '3. Legal Analysis: Based on case facts and questions, relevant legal sections are identified and explained. The legal text is securely stored on our server.',
     },
     {
-      ur: '4. قانونی معلومات: قوانین کے متن کا کسی وکیل کی جانب سے جائزہ نہیں لیا گیا جب تک کہ متعلقہ دفعہ پر Verified کا نشان نہ ہو۔ دکھائی گئی دفعات قانونی معلومات اور ابتدائی مسودہ ہیں، قانونی مشورہ نہیں۔',
-      en: '4. Legal Information: The law texts and draft complaint are legal information and a draft, not official legal advice.',
+      ur: '4. قانونی معلومات: دکھائی گئی دفعات اور شکایت کا مسودہ محض معلوماتی رہنمائی ہیں، حتمی قانونی مشورہ نہیں۔',
+      en: '4. Legal Information: The law texts and draft complaint are educational information and draft preparation, not official legal advice.',
     },
     {
-      ur: '5. سخی سرکل پیٹرن میچنگ: سخی سرکل کے لیے، نارملائزڈ نمبر یا ہینڈل HTTPS کے ذریعے ہمارے سرور پر بھیجا جاتا ہے، جو اسے ایک ناقابلِ واپسی کوڈ میں تبدیل کر کے اصل کو فوراً تلف کر دیتا ہے۔ پیغامات، تصاویر اور نام کبھی نہیں بھیجے جاتے۔',
-      en: '5. Sakhi Circle Matching: For Sakhi Circle, the normalized number or handle is sent over HTTPS to our server, which turns it into an irreversible code and discards the original immediately. Messages, images and names are never sent.',
+      ur: '5. سخی سرکل پیٹرن میچنگ: سخی سرکل کے لیے، نمبر یا ہینڈل کو ایک خفیہ اور محفوظ کوڈ میں تبدیل کیا جاتا ہے تاکہ اصل معلومات فون پر ہی محفوظ رہیں۔ پیغامات، تصاویر اور نام کبھی نہیں بھیجے جاتے۔',
+      en: '5. Sakhi Circle Matching: For Sakhi Circle, numbers or handles are converted into secure private codes. Messages, images and names are never sent.',
     },
   ];
 
@@ -420,7 +420,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             </span>
           </div>
           <p className="text-[11px] text-slate-500 leading-relaxed">
-            Standalone encrypted bundle for legal transfer. Requires AES-GCM encryption with out-of-band key delivery.
+            Standalone encrypted bundle for legal transfer. Requires secure key delivery.
           </p>
         </div>
 

@@ -746,7 +746,7 @@ export const EvidenceIntake: React.FC<EvidenceIntakeProps> = ({
                 {item.ocrOrTranscriptText && (
                   <div className="p-2.5 bg-slate-950/70 border border-slate-800/80 rounded-xl text-[11px] text-slate-400">
                     <span className="font-semibold text-teal-400 text-[10px] uppercase block mb-0.5">
-                      Extracted Text / Transcript:
+                      Recognized Text:
                     </span>
                     <p className="line-clamp-2">{item.ocrOrTranscriptText}</p>
                   </div>

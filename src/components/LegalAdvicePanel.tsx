@@ -188,29 +188,17 @@ export const LegalAdvicePanel: React.FC<LegalAdvicePanelProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* 6. MANDATORY LEGAL DISCLAIMER BANNER */}
-      <div className="p-4 bg-amber-950/40 border-2 border-amber-800/80 rounded-2xl flex items-start gap-3">
-        <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <h4 className="text-xs font-bold text-amber-300 uppercase tracking-wider">
-            Information and draft only, not legal advice.
-          </h4>
-          <p className="text-xs text-amber-200/90 leading-relaxed">
-            The sections below are educational extracts from verified regulatory frameworks. All statutory guidance is for draft preparation and must be reviewed by an advocate or legal aid clinic.
-          </p>
-        </div>
-      </div>
+
 
       {/* Header and Controls */}
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 p-4 rounded-2xl">
         <div>
           <h2 className="text-base font-bold text-white flex items-center gap-2">
             <Scale className="w-5 h-5 text-teal-400" />
-            <span>Which Law May Apply (Grounded RAG Pipeline)</span>
+            <span className="font-urdu text-base leading-snug">کون سے قانون لاگو ہو سکتے ہیں</span>
+            <span className="text-xs text-slate-400 font-normal block">Which Laws May Apply</span>
           </h2>
-          <p className="text-xs text-slate-400">
-            Hybrid vector + BM25 reciprocal rank fusion grounded strictly in verified corpus
-          </p>
+
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
@@ -256,7 +244,10 @@ export const LegalAdvicePanel: React.FC<LegalAdvicePanelProps> = ({
             onClick={onProceedToDraft}
             className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold rounded-xl shadow-md transition flex items-center gap-2 ml-auto lg:ml-0"
           >
-            <span>Draft Formal Complaint</span>
+            <div>
+              <span className="font-urdu text-sm leading-snug">شکایت کا مسودہ بنائیں</span>
+              <span className="text-xs text-slate-400 block">Create Complaint Draft</span>
+            </div>
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -267,7 +258,7 @@ export const LegalAdvicePanel: React.FC<LegalAdvicePanelProps> = ({
         <div className="flex items-center gap-2">
           <HelpCircle className="w-4 h-4 text-teal-400" />
           <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-            Ask a Free-Form Legal Question (Grounded in Verified Corpus)
+            قانون کے بارے میں سوال پوچھیں / Ask a Legal Question
           </h3>
         </div>
         <form onSubmit={handleAskQuestion} className="flex flex-col sm:flex-row gap-2">
@@ -301,7 +292,7 @@ export const LegalAdvicePanel: React.FC<LegalAdvicePanelProps> = ({
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <span className="font-bold text-teal-400 flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-teal-400" />
-                Grounded Answer
+                Answer
               </span>
               <span className="text-[10px] text-amber-300 font-mono">
                 {askResult.disclaimer}
@@ -314,7 +305,7 @@ export const LegalAdvicePanel: React.FC<LegalAdvicePanelProps> = ({
             {askResult.citedCards.length > 0 && (
               <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Verified Sections Cited:
+                  Sections Cited:
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   {askResult.citedCards.map((c, i) => (
@@ -366,10 +357,8 @@ export const LegalAdvicePanel: React.FC<LegalAdvicePanelProps> = ({
         <div className="space-y-4">
           <div className="flex items-center justify-between text-xs text-slate-400 px-1">
             <span>
-              Showing {cards.length} verified statutory provisions for this case
-            </span>
-            <span className="text-[11px] text-teal-400">
-              Only verified provisions are forwarded to the complaint draft
+              <span className="font-urdu">آپ کے کیس پر یہ {cards.length} قانون لاگو ہو سکتے ہیں</span>
+              <span className="text-[11px] text-slate-500 block">These {cards.length} laws may apply to your case</span>
             </span>
           </div>
 
@@ -396,17 +385,6 @@ export const LegalAdvicePanel: React.FC<LegalAdvicePanelProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {/* Verification Badge */}
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${
-                        card.verifiedBy && card.verifiedBy !== 'Not yet verified'
-                          ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60'
-                          : 'bg-amber-950/80 text-amber-300 border-amber-800/60'
-                      }`}
-                      title={card.lastVerified ? `Verified on ${card.lastVerified}` : ''}
-                    >
-                      {card.verifiedBy || 'Not yet verified'}
-                    </span>
 
                     {card.sourceUrl && (
                       <a

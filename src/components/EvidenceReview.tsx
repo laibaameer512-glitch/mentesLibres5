@@ -214,10 +214,10 @@ export const EvidenceReview: React.FC<EvidenceReviewProps> = ({
         <div>
           <h2 className="text-sm font-bold text-white flex items-center gap-2">
             <FileCheck className="w-4 h-4 text-teal-400" />
-            <span>Interactive Evidence Review & Sanitization</span>
+            <span>ثبوت کا جائزہ اور ترمیم / Evidence Review & Editing</span>
           </h2>
           <p className="text-xs text-slate-400">
-            Verify, reorder, or edit every extracted message and label before proceeding to legal assessment.
+            Verify, reorder, or edit every message and category before proceeding to legal assessment.
           </p>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -232,7 +232,7 @@ export const EvidenceReview: React.FC<EvidenceReviewProps> = ({
             onClick={onProceedToLegal}
             className="flex-1 sm:flex-none px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold rounded-xl transition shadow-md flex items-center justify-center gap-1.5"
           >
-            <span>Proceed to Legal Grounding</span>
+            <span>قانونی جائزہ دیکھیں / Proceed to Legal Review</span>
           </button>
         </div>
       </div>
@@ -249,7 +249,7 @@ export const EvidenceReview: React.FC<EvidenceReviewProps> = ({
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
-            <span>Extracted Timeline & Messages</span>
+            <span>پیغامات اور ٹائم لائن / Timeline & Messages</span>
           </button>
 
           <button
@@ -277,9 +277,9 @@ export const EvidenceReview: React.FC<EvidenceReviewProps> = ({
           {!review ? (
             <div className="p-8 border border-dashed border-slate-800 rounded-2xl text-center space-y-3 bg-slate-900/40">
               <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto" />
-              <h3 className="text-sm font-semibold text-white">No Extraction Records Available Yet</h3>
+              <h3 className="text-sm font-semibold text-white">ابھی کوئی ریکارڈ دستیاب نہیں / No Records Available Yet</h3>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                Please analyse evidence first to populate parsed messages, threats, and legal classifications.
+                Please analyse evidence first to populate messages, threats, and legal categories.
               </p>
             </div>
           ) : (
@@ -432,7 +432,7 @@ export const EvidenceReview: React.FC<EvidenceReviewProps> = ({
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
           <h4 className="text-xs font-bold text-red-400 uppercase tracking-wider flex items-center gap-1.5">
             <AlertTriangle className="w-3.5 h-3.5" />
-            <span>Extracted Coercive Threats ({threats.length})</span>
+            <span>Coercive Threats ({threats.length})</span>
           </h4>
           <div className="space-y-1.5 max-h-56 overflow-y-auto">
             {threats.map((threat, i) => (
@@ -471,7 +471,7 @@ export const EvidenceReview: React.FC<EvidenceReviewProps> = ({
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
           <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
             <Tag className="w-3.5 h-3.5" />
-            <span>Extracted Extortion Demands ({demands.length})</span>
+            <span>Extortion Demands ({demands.length})</span>
           </h4>
           <div className="space-y-1.5 max-h-56 overflow-y-auto">
             {demands.map((demand, i) => (
@@ -512,10 +512,10 @@ export const EvidenceReview: React.FC<EvidenceReviewProps> = ({
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-white flex items-center gap-2">
             <Shield className="w-4 h-4 text-teal-400" />
-            <span>Legal Classification Tags</span>
+            <span>قانونی زمرے / Legal Categories</span>
           </h3>
           <span className="text-[11px] text-slate-500">
-            Backed by specific evidentiary quotes
+            Backed by specific quotes from evidence
           </span>
         </div>
 
@@ -547,7 +547,7 @@ export const EvidenceReview: React.FC<EvidenceReviewProps> = ({
       {/* SECTION 4: 5-LINE CASE SUMMARY */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 md:p-5 space-y-3">
         <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-          <span>5-Line Plain-Language Case Facts Summary</span>
+          <span>کیس کا خلاصہ / Case Summary</span>
         </h3>
         <div className="space-y-2">
           {summaryLines.map((line, idx) => (
@@ -575,7 +575,7 @@ export const EvidenceReview: React.FC<EvidenceReviewProps> = ({
                 <span>In-Case Duplicate Evidence Detector</span>
               </h3>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                Client-side comparison of 3-gram text Jaccard, image dHash, and timestamp overlap across evidence items.
+                Compares text, images, and timestamps across evidence items to find possible duplicates.
               </p>
             </div>
 

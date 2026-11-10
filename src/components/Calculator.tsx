@@ -314,27 +314,27 @@ export const Calculator: React.FC<CalculatorProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#080b0f] flex flex-col items-center justify-center p-3 select-none">
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-3 select-none">
       {/* Toast */}
       {demoToast && (
-        <div className="fixed top-4 z-50 px-4 py-2 bg-teal-900/90 border border-teal-500 text-teal-100 text-xs rounded-xl shadow-lg flex items-center gap-2 animate-bounce">
-          <Check className="w-4 h-4 text-teal-400" />
+        <div className="fixed top-4 z-50 px-4 py-2 bg-[#1c1c1e] border border-[#ff9500] text-white text-xs rounded-xl shadow-lg flex items-center gap-2 animate-bounce">
+          <Check className="w-4 h-4 text-[#ff9500]" />
           <span>{demoToast}</span>
         </div>
       )}
 
       {/* Main Calculator Shell: Authentically sized for mobile phones (390px) and desktop */}
-      <div className="w-full max-w-[390px] bg-[#121820] border border-slate-800/90 rounded-[32px] p-5 shadow-2xl flex flex-col justify-between aspect-[9/16] max-h-[820px]">
+      <div className="w-full max-w-[390px] bg-black border border-[#1c1c1e] rounded-[32px] p-5 shadow-2xl flex flex-col justify-between aspect-[9/16] max-h-[820px]">
         {/* Top Disguised Header */}
-        <div className="flex items-center justify-between text-slate-500 text-xs px-2 pt-1">
+        <div className="flex items-center justify-between text-[#8e8e93] text-xs px-2 pt-1">
           <div className="flex items-center gap-1.5">
-            <span className="font-semibold tracking-wider text-slate-400">CALCULATOR</span>
-            <span className="text-[10px] text-slate-600 font-mono">v3.2</span>
+            <span className="font-semibold tracking-wider text-[#8e8e93]">CALCULATOR</span>
+            <span className="text-[10px] text-[#636366] font-mono">v3.2</span>
           </div>
           <button
             onClick={onOpenSetup}
             title="Calculator Settings & Precision"
-            className="p-1.5 text-slate-500 hover:text-slate-300 rounded-lg hover:bg-slate-800/60 transition"
+            className="p-1.5 text-[#8e8e93] hover:text-white rounded-lg hover:bg-[#1c1c1e] transition"
           >
             <Settings className="w-4 h-4" />
           </button>
@@ -342,7 +342,7 @@ export const Calculator: React.FC<CalculatorProps> = ({
 
         {/* Display Screen */}
         <div className="flex-1 flex flex-col justify-end items-end px-3 py-6 font-mono text-right overflow-hidden">
-          <div className="text-sm text-slate-500 h-6 truncate max-w-full">
+          <div className="text-sm text-[#8e8e93] h-6 truncate max-w-full">
             {prevEquation}
           </div>
           <div className="text-5xl font-light text-white tracking-tight break-all max-h-24 overflow-hidden">
@@ -355,25 +355,25 @@ export const Calculator: React.FC<CalculatorProps> = ({
           {/* Row 1 */}
           <button
             onClick={handleClear}
-            className="h-16 rounded-2xl bg-slate-800/90 hover:bg-slate-700 active:bg-slate-600 text-amber-400 font-bold text-lg transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#a5a5a5] hover:bg-[#b8b8b8] active:bg-[#d4d4d2] text-black font-bold text-lg transition flex items-center justify-center"
           >
             C
           </button>
           <button
             onClick={() => performOperation('+/-')}
-            className="h-16 rounded-2xl bg-slate-800/90 hover:bg-slate-700 active:bg-slate-600 text-slate-200 font-medium text-lg transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#a5a5a5] hover:bg-[#b8b8b8] active:bg-[#d4d4d2] text-black font-medium text-lg transition flex items-center justify-center"
           >
             ±
           </button>
           <button
             onClick={() => performOperation('%')}
-            className="h-16 rounded-2xl bg-slate-800/90 hover:bg-slate-700 active:bg-slate-600 text-slate-200 font-medium text-lg transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#a5a5a5] hover:bg-[#b8b8b8] active:bg-[#d4d4d2] text-black font-medium text-lg transition flex items-center justify-center"
           >
             %
           </button>
           <button
             onClick={() => performOperation('÷')}
-            className="h-16 rounded-2xl bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white font-bold text-2xl transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#ff9500] hover:bg-[#ffaa33] active:bg-[#cc7700] text-white font-bold text-2xl transition flex items-center justify-center"
           >
             ÷
           </button>
@@ -381,25 +381,25 @@ export const Calculator: React.FC<CalculatorProps> = ({
           {/* Row 2 */}
           <button
             onClick={() => inputDigit('7')}
-            className="h-16 rounded-2xl bg-slate-900/90 hover:bg-slate-800 active:bg-slate-700 text-white font-medium text-2xl transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#333333] hover:bg-[#444444] active:bg-[#555555] text-white font-medium text-2xl transition flex items-center justify-center"
           >
             7
           </button>
           <button
             onClick={() => inputDigit('8')}
-            className="h-16 rounded-2xl bg-slate-900/90 hover:bg-slate-800 active:bg-slate-700 text-white font-medium text-2xl transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#333333] hover:bg-[#444444] active:bg-[#555555] text-white font-medium text-2xl transition flex items-center justify-center"
           >
             8
           </button>
           <button
             onClick={() => inputDigit('9')}
-            className="h-16 rounded-2xl bg-slate-900/90 hover:bg-slate-800 active:bg-slate-700 text-white font-medium text-2xl transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#333333] hover:bg-[#444444] active:bg-[#555555] text-white font-medium text-2xl transition flex items-center justify-center"
           >
             9
           </button>
           <button
             onClick={() => performOperation('×')}
-            className="h-16 rounded-2xl bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white font-bold text-2xl transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#ff9500] hover:bg-[#ffaa33] active:bg-[#cc7700] text-white font-bold text-2xl transition flex items-center justify-center"
           >
             ×
           </button>
@@ -407,25 +407,25 @@ export const Calculator: React.FC<CalculatorProps> = ({
           {/* Row 3 */}
           <button
             onClick={() => inputDigit('4')}
-            className="h-16 rounded-2xl bg-slate-900/90 hover:bg-slate-800 active:bg-slate-700 text-white font-medium text-2xl transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#333333] hover:bg-[#444444] active:bg-[#555555] text-white font-medium text-2xl transition flex items-center justify-center"
           >
             4
           </button>
           <button
             onClick={() => inputDigit('5')}
-            className="h-16 rounded-2xl bg-slate-900/90 hover:bg-slate-800 active:bg-slate-700 text-white font-medium text-2xl transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#333333] hover:bg-[#444444] active:bg-[#555555] text-white font-medium text-2xl transition flex items-center justify-center"
           >
             5
           </button>
           <button
             onClick={() => inputDigit('6')}
-            className="h-16 rounded-2xl bg-slate-900/90 hover:bg-slate-800 active:bg-slate-700 text-white font-medium text-2xl transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#333333] hover:bg-[#444444] active:bg-[#555555] text-white font-medium text-2xl transition flex items-center justify-center"
           >
             6
           </button>
           <button
             onClick={() => performOperation('-')}
-            className="h-16 rounded-2xl bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white font-bold text-2xl transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#ff9500] hover:bg-[#ffaa33] active:bg-[#cc7700] text-white font-bold text-2xl transition flex items-center justify-center"
           >
             −
           </button>
@@ -433,25 +433,25 @@ export const Calculator: React.FC<CalculatorProps> = ({
           {/* Row 4 */}
           <button
             onClick={() => inputDigit('1')}
-            className="h-16 rounded-2xl bg-slate-900/90 hover:bg-slate-800 active:bg-slate-700 text-white font-medium text-2xl transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#333333] hover:bg-[#444444] active:bg-[#555555] text-white font-medium text-2xl transition flex items-center justify-center"
           >
             1
           </button>
           <button
             onClick={() => inputDigit('2')}
-            className="h-16 rounded-2xl bg-slate-900/90 hover:bg-slate-800 active:bg-slate-700 text-white font-medium text-2xl transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#333333] hover:bg-[#444444] active:bg-[#555555] text-white font-medium text-2xl transition flex items-center justify-center"
           >
             2
           </button>
           <button
             onClick={() => inputDigit('3')}
-            className="h-16 rounded-2xl bg-slate-900/90 hover:bg-slate-800 active:bg-slate-700 text-white font-medium text-2xl transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#333333] hover:bg-[#444444] active:bg-[#555555] text-white font-medium text-2xl transition flex items-center justify-center"
           >
             3
           </button>
           <button
             onClick={() => performOperation('+')}
-            className="h-16 rounded-2xl bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white font-bold text-2xl transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#ff9500] hover:bg-[#ffaa33] active:bg-[#cc7700] text-white font-bold text-2xl transition flex items-center justify-center"
           >
             +
           </button>
@@ -459,19 +459,19 @@ export const Calculator: React.FC<CalculatorProps> = ({
           {/* Row 5 */}
           <button
             onClick={() => inputDigit('0')}
-            className="h-16 rounded-2xl bg-slate-900/90 hover:bg-slate-800 active:bg-slate-700 text-white font-medium text-2xl transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#333333] hover:bg-[#444444] active:bg-[#555555] text-white font-medium text-2xl transition flex items-center justify-center"
           >
             0
           </button>
           <button
             onClick={inputDecimal}
-            className="h-16 rounded-2xl bg-slate-900/90 hover:bg-slate-800 active:bg-slate-700 text-white font-bold text-2xl transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#333333] hover:bg-[#444444] active:bg-[#555555] text-white font-bold text-2xl transition flex items-center justify-center"
           >
             .
           </button>
           <button
             onClick={handleBackspace}
-            className="h-16 rounded-2xl bg-slate-900/90 hover:bg-slate-800 active:bg-slate-700 text-slate-400 hover:text-white font-medium text-xl transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#a5a5a5] hover:bg-[#b8b8b8] active:bg-[#d4d4d2] text-black font-medium text-xl transition flex items-center justify-center"
           >
             ⌫
           </button>
@@ -481,7 +481,7 @@ export const Calculator: React.FC<CalculatorProps> = ({
             onMouseUp={handleEqualsMouseUp}
             onTouchStart={handleEqualsMouseDown}
             onTouchEnd={handleEqualsMouseUp}
-            className="h-16 rounded-2xl bg-teal-500 hover:bg-teal-400 active:bg-teal-600 text-white font-bold text-2xl shadow-lg shadow-teal-950 transition flex items-center justify-center"
+            className="h-16 rounded-2xl bg-[#ff9500] hover:bg-[#ffaa33] active:bg-[#cc7700] text-white font-bold text-2xl shadow-lg shadow-black/60 transition flex items-center justify-center"
             title="Press = to calculate (or hold 1.5s for demo tools)"
           >
             =
@@ -492,26 +492,26 @@ export const Calculator: React.FC<CalculatorProps> = ({
       {/* Hidden Demo Modal (Triggered by long-press on "=") */}
       {showDemoModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-5 text-slate-200 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <h4 className="text-sm font-bold text-teal-400 flex items-center gap-1.5">
+          <div className="w-full max-w-sm bg-[#1c1c1e] border border-[#2c2c2e] rounded-2xl p-5 text-neutral-200 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[#2c2c2e] pb-2">
+              <h4 className="text-sm font-bold text-[#ff9500] flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4" />
                 <span>Demo Tooling (Hackathon Jury)</span>
               </h4>
               <button
                 onClick={() => setShowDemoModal(false)}
-                className="text-xs text-slate-400 hover:text-white"
+                className="text-xs text-[#8e8e93] hover:text-white"
               >
                 ✕
               </button>
             </div>
-            <p className="text-xs text-slate-400 leading-relaxed">
+            <p className="text-xs text-neutral-400 leading-relaxed">
               Long-press trigger recognized. Load 15 fictional dummy screenshots, 2 sample voice transcripts, and a WhatsApp chat into your encrypted vault for live testing.
             </p>
             <div className="space-y-2 pt-1">
               <button
                 onClick={handleSeedDemoData}
-                className="w-full py-2.5 px-4 bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold rounded-xl transition shadow flex items-center justify-center gap-2"
+                className="w-full py-2.5 px-4 bg-[#ff9500] hover:bg-[#ffaa33] active:bg-[#cc7700] text-white text-xs font-semibold rounded-xl transition shadow flex items-center justify-center gap-2"
               >
                 <Sparkles className="w-4 h-4" />
                 <span>Load 15 Dummy Screenshots & Transcripts</span>
@@ -521,9 +521,9 @@ export const Calculator: React.FC<CalculatorProps> = ({
                   setShowDemoModal(false);
                   setShowDevHealthModal(true);
                 }}
-                className="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 text-teal-300 text-xs font-semibold rounded-xl border border-teal-800/60 transition flex items-center justify-center gap-2"
+                className="w-full py-2 px-3 bg-[#2c2c2e] hover:bg-[#3a3a3c] text-white text-xs font-semibold rounded-xl border border-[#3a3a3c] transition flex items-center justify-center gap-2"
               >
-                <Cpu className="w-4 h-4 text-teal-400" />
+                <Cpu className="w-4 h-4 text-[#ff9500]" />
                 <span>Model Diagnostics (/api/health)</span>
               </button>
               {onNavigateCounselor && (
@@ -532,9 +532,9 @@ export const Calculator: React.FC<CalculatorProps> = ({
                     setShowDemoModal(false);
                     onNavigateCounselor();
                   }}
-                  className="w-full py-2 px-3 bg-slate-800 hover:bg-teal-950/80 text-teal-300 text-xs font-semibold rounded-xl border border-teal-800 transition flex items-center justify-center gap-2"
+                  className="w-full py-2 px-3 bg-[#2c2c2e] hover:bg-[#3a3a3c] text-white text-xs font-semibold rounded-xl border border-[#3a3a3c] transition flex items-center justify-center gap-2"
                 >
-                  <Shield className="w-4 h-4 text-teal-400" />
+                  <Shield className="w-4 h-4 text-[#ff9500]" />
                   <span>Open Counselor Portal (/counselor)</span>
                 </button>
               )}
